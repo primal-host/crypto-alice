@@ -70,13 +70,12 @@ impl App {
             Wallet { name: "Carol".into(), deposits: 0.0, balance: 0.0, sent: 0.0, t },
             Wallet { name: "Dan".into(), deposits: 0.0, balance: 0.0, sent: 0.0, t },
             Wallet { name: "Eve".into(), deposits: 0.0, balance: 0.0, sent: 0.0, t },
-            Wallet { name: "Frank".into(), deposits: 0.0, balance: 0.0, sent: 0.0, t },
         ];
 
-        wallets[0].balance -= GIFT * 6.0;
-        wallets[0].sent = GIFT * 6.0;
+        wallets[0].balance -= GIFT * 5.0;
+        wallets[0].sent = GIFT * 5.0;
         let mut log = Vec::new();
-        for i in 1..7 {
+        for i in 1..6 {
             wallets[i].deposits = GIFT;
             log.push(TxLog {
                 from: "Koi".into(),
