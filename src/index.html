@@ -305,9 +305,7 @@ function initCards() {
     if (w.name === 'Koi') {
       card.innerHTML =
         '<div class="name">' + w.name + '</div>' +
-        '<div class="acct-row balance-row"><span class="label">Balance</span><span class="value" id="bal-' + w.name + '"></span></div>' +
-        '<div class="rate" id="rate-' + w.name + '"></div>' +
-        '<div class="acct-row sent"><span class="label">Sent</span><span class="value" id="snt-' + w.name + '"></span></div>';
+        '<div class="acct-row balance-row"><span class="label">Balance</span><span class="value" id="bal-' + w.name + '"></span></div>';
     } else {
       card.innerHTML =
         '<div class="name">' + w.name + '</div>' +
@@ -353,8 +351,10 @@ function render() {
       document.getElementById('int-' + w.name).textContent = fmt(a.interest);
     }
     balEl.textContent = fmt(a.total);
-    document.getElementById('rate-' + w.name).textContent = '+' + fmt(rate) + '/sec';
-    document.getElementById('snt-' + w.name).textContent = fmt(a.sent);
+    if (w.name !== 'Koi') {
+      document.getElementById('rate-' + w.name).textContent = '+' + fmt(rate) + '/sec';
+      document.getElementById('snt-' + w.name).textContent = fmt(a.sent);
+    }
   }
 }
 
