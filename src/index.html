@@ -27,6 +27,26 @@ main {
   margin: 0 auto;
   padding: 1.5rem;
 }
+.koi-card {
+  background: #16181d;
+  border: 1px solid #27272a;
+  border-radius: 0.5rem;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  text-align: center;
+}
+.koi-balance {
+  font-size: 2rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  word-break: break-all;
+}
+.koi-rate {
+  font-size: 0.75rem;
+  color: #f87171;
+  margin-top: 0.25rem;
+  font-variant-numeric: tabular-nums;
+}
 .wallets {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
@@ -166,6 +186,11 @@ main {
   </div>
 </header>
 <main>
+  <div class="koi-card">
+    <div class="koi-balance" id="koi-bal"></div>
+    <div class="koi-rate" id="koi-rate"></div>
+  </div>
+
   <div class="wallets" id="wallets"></div>
 
   <div class="section">
@@ -210,15 +235,14 @@ function fmt(n) {
 }
 
 function calcBal(w, t) {
-  if (w.name === 'Alice') {
-    // Alice: no interest, but subtract unsettled interest owed to all others
+  if (w.name === 'Koi') {
     let bal = w.balance;
     for (const p of w.pending) {
       const pdt = (t - p.t) / state.spy;
       bal += p.amount * (1 - Math.exp(-state.rate * pdt));
     }
     for (const o of state.wallets) {
-      if (o.name === 'Alice') continue;
+      if (o.name === 'Koi') continue;
       const dt = (t - o.t) / state.spy;
       bal -= o.balance * (Math.exp(state.rate * dt) - 1);
     }
@@ -233,15 +257,6 @@ function calcBal(w, t) {
   return bal;
 }
 
-function calcPnd(w, t) {
-  let r = 0;
-  for (const p of w.pending) {
-    const pdt = (t - p.t) / state.spy;
-    r += p.amount * Math.exp(-state.rate * pdt);
-  }
-  return r;
-}
-
 function initCards() {
   const c = document.getElementById('wallets');
   c.innerHTML = '';
@@ -250,15 +265,18 @@ function initCards() {
   sf.innerHTML = '';
   st.innerHTML = '';
   for (const w of state.wallets) {
-    const card = document.createElement('div');
-    card.className = 'wallet-card';
-    card.id = 'card-' + w.name;
-    card.innerHTML =
-      '<div class="name">' + w.name + '</div>' +
-      '<div class="balance" id="bal-' + w.name + '"></div>' +
-      '<div class="rate" id="rate-' + w.name + '"></div>' +
-      '<div id="pnd-' + w.name + '"></div>';
-    c.appendChild(card);
+    // Koi goes in the top banner, not the grid
+    if (w.name !== 'Koi') {
+      const card = document.createElement('div');
+      card.className = 'wallet-card';
+      card.id = 'card-' + w.name;
+      card.innerHTML =
+        '<div class="name">' + w.name + '</div>' +
+        '<div class="balance" id="bal-' + w.name + '"></div>' +
+        '<div class="rate" id="rate-' + w.name + '"></div>' +
+        '<div id="pnd-' + w.name + '"></div>';
+      c.appendChild(card);
+    }
     sf.add(new Option(w.name, w.name));
     st.add(new Option(w.name, w.name));
   }
@@ -268,28 +286,32 @@ function initCards() {
 function render() {
   if (!state) return;
   const t = sNow();
+
+  // Koi banner
+  const koi = state.wallets.find(function(w) { return w.name === 'Koi'; });
+  if (koi) {
+    const koiBal = calcBal(koi, t);
+    document.getElementById('koi-bal').textContent = fmt(koiBal) + ' koi';
+    let drain = 0;
+    for (const o of state.wallets) {
+      if (o.name === 'Koi') continue;
+      const obal = calcBal(o, t);
+      drain += obal * (Math.exp(state.rate / state.spy) - 1);
+    }
+    document.getElementById('koi-rate').textContent = '-' + fmt(drain) + '/sec';
+  }
+
+  // Regular wallets
   for (const w of state.wallets) {
+    if (w.name === 'Koi') continue;
     const bal = calcBal(w, t);
+    const perSec = bal * (Math.exp(state.rate / state.spy) - 1);
     const balEl = document.getElementById('bal-' + w.name);
     const rateEl = document.getElementById('rate-' + w.name);
     const pndEl = document.getElementById('pnd-' + w.name);
     if (!balEl) continue;
     balEl.textContent = fmt(bal) + ' koi';
-    if (w.name === 'Alice') {
-      // Alice's rate: sum of interest being drained by all others
-      let drain = 0;
-      for (const o of state.wallets) {
-        if (o.name === 'Alice') continue;
-        const obal = calcBal(o, t);
-        drain += obal * (Math.exp(state.rate / state.spy) - 1);
-      }
-      rateEl.textContent = '-' + fmt(drain) + '/sec';
-      rateEl.style.color = '#f87171';
-    } else {
-      const perSec = bal * (Math.exp(state.rate / state.spy) - 1);
-      rateEl.textContent = '+' + fmt(perSec) + '/sec';
-      rateEl.style.color = '#4ade80';
-    }
+    rateEl.textContent = '+' + fmt(perSec) + '/sec';
 
     let html = '';
     for (const p of w.pending) {
