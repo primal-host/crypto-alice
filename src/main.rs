@@ -166,7 +166,6 @@ impl App {
             return self.early_settle(from, amount);
         }
 
-        self.settle(from);
         if self.wallets[from].balance < amount {
             return Err("Insufficient balance".into());
         }
