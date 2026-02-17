@@ -73,13 +73,11 @@ impl App {
             Wallet { name: "Frank".into(), deposits: 0.0, balance: 0.0, sent: 0.0, t },
         ];
 
-        let half = GIFT / 2.0;
         wallets[0].balance -= GIFT * 6.0;
         wallets[0].sent = GIFT * 6.0;
         let mut log = Vec::new();
         for i in 1..7 {
-            wallets[i].balance = half;
-            wallets[i].deposits = half;
+            wallets[i].deposits = GIFT;
             log.push(TxLog {
                 from: "Koi".into(),
                 to: wallets[i].name.clone(),
