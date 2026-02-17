@@ -101,7 +101,7 @@ impl App {
         let dt = (t - w.t) / SPY;
 
         let pending = (w.deposits * ((PRATE * dt).exp() - 1.0)).min(w.deposits);
-        let interest = w.balance * ((RATE * dt).exp() - 1.0);
+        let interest = (w.balance + pending) * ((RATE * dt).exp() - 1.0);
 
         self.wallets[i].balance += pending + interest;
         self.wallets[i].deposits -= pending;
