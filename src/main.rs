@@ -125,7 +125,7 @@ impl App {
 
         let pending = (w.deposits * ((PRATE * dt).exp() - 1.0)).min(w.deposits);
         let interest = (w.balance + pending) * ((RATE * dt).exp() - 1.0);
-        let available = 2.0 * (w.deposits - pending) / 3.0;
+        let available = 3.0 * (w.deposits - pending) / 4.0;
 
         if amount > available {
             return Err("Exceeds available".into());
@@ -139,7 +139,7 @@ impl App {
 
         // Early settlement: wallet gets amount, fee goes to Koi deposits
         if amount > 0.0 {
-            let fee = amount / 2.0;
+            let fee = amount / 3.0;
             self.wallets[i].balance += amount;
             self.wallets[i].deposits -= amount + fee;
             self.wallets[0].deposits += fee;
@@ -156,7 +156,7 @@ impl App {
             self.log.push(TxLog {
                 from: name,
                 to: "Koi".into(),
-                amount: amount / 2.0,
+                amount: amount / 3.0,
                 t,
             });
         }

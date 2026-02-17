@@ -255,7 +255,7 @@ function calcAccounts(w, t) {
   return {
     deposits: w.deposits,
     pending: pending,
-    available: 2 * (w.deposits - pending) / 3,
+    available: 3 * (w.deposits - pending) / 4,
     interest: interest,
     total: w.balance + pending + interest,
     sent: w.sent
