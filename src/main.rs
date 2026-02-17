@@ -66,7 +66,7 @@ impl App {
     fn new(notify: broadcast::Sender<()>) -> Self {
         let t = now();
         let mut wallets = vec![
-            Wallet { name: "Koi".into(), deposits: TOTAL_SUPPLY, balance: 0.0, sent: 0.0, t },
+            Wallet { name: "Koi".into(), deposits: 0.0, balance: TOTAL_SUPPLY, sent: 0.0, t },
             Wallet { name: "Alice".into(), deposits: 0.0, balance: 0.0, sent: 0.0, t },
             Wallet { name: "Bob".into(), deposits: 0.0, balance: 0.0, sent: 0.0, t },
             Wallet { name: "Carol".into(), deposits: 0.0, balance: 0.0, sent: 0.0, t },
@@ -74,7 +74,7 @@ impl App {
             Wallet { name: "Eve".into(), deposits: 0.0, balance: 0.0, sent: 0.0, t },
         ];
 
-        wallets[0].deposits -= GIFT * 5.0;
+        wallets[0].balance -= GIFT * 5.0;
         wallets[0].sent = GIFT * 5.0;
         let mut log = Vec::new();
         for i in 1..6 {
@@ -93,13 +93,6 @@ impl App {
     fn settle(&mut self, i: usize) {
         let t = now();
         if i == 0 {
-            // Koi: pending only, no interest
-            let w = &self.wallets[0];
-            let dt = (t - w.t) / SPY;
-            let pending = (w.deposits * ((KPRATE * dt).exp() - 1.0)).min(w.deposits);
-            self.wallets[0].balance += pending;
-            self.wallets[0].deposits -= pending;
-            self.wallets[0].t = t;
             return;
         }
 
@@ -144,7 +137,7 @@ impl App {
             let fee = amount / 3.0;
             self.wallets[i].balance += amount;
             self.wallets[i].deposits -= amount + fee;
-            self.wallets[0].deposits += fee;
+            self.wallets[0].balance += fee;
         }
 
         let name = self.wallets[i].name.clone();

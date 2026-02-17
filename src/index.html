@@ -249,10 +249,12 @@ function fmt(n) {
 }
 
 function calcAccounts(w, t) {
+  if (w.name === 'Koi') {
+    return { deposits: 0, pending: 0, available: 0, interest: 0, total: w.balance, sent: w.sent };
+  }
   var dt = (t - w.t) / state.spy;
-  var pr = w.name === 'Koi' ? state.kprate : state.prate;
-  var pending = Math.min(w.deposits, w.deposits * (Math.exp(pr * dt) - 1));
-  var interest = w.name === 'Koi' ? 0 : (w.balance + pending) * (Math.exp(state.rate * dt) - 1);
+  var pending = Math.min(w.deposits, w.deposits * (Math.exp(state.prate * dt) - 1));
+  var interest = (w.balance + pending) * (Math.exp(state.rate * dt) - 1);
   return {
     deposits: w.deposits,
     pending: pending,
@@ -264,10 +266,7 @@ function calcAccounts(w, t) {
 }
 
 function calcKoiBal(t) {
-  var koi = state.wallets[0];
-  var dt0 = (t - koi.t) / state.spy;
-  var koiPnd = Math.min(koi.deposits, koi.deposits * (Math.exp(state.kprate * dt0) - 1));
-  var bal = koi.balance + koiPnd;
+  var bal = state.wallets[0].balance;
   for (var i = 1; i < state.wallets.length; i++) {
     var o = state.wallets[i];
     var dt = (t - o.t) / state.spy;
@@ -279,14 +278,14 @@ function calcKoiBal(t) {
 }
 
 function calcRate(w, t) {
+  if (w.name === 'Koi') return 0;
   var dt = (t - w.t) / state.spy;
-  var pr = w.name === 'Koi' ? state.kprate : state.prate;
   var irps = state.rate / state.spy;
-  var prps = pr / state.spy;
-  var pending = Math.min(w.deposits, w.deposits * (Math.exp(pr * dt) - 1));
-  var rate = w.name === 'Koi' ? 0 : (w.balance + pending) * irps * Math.exp(state.rate * dt);
-  if (w.deposits * (Math.exp(pr * dt) - 1) < w.deposits) {
-    rate += w.deposits * prps * Math.exp(pr * dt);
+  var prps = state.prate / state.spy;
+  var pending = Math.min(w.deposits, w.deposits * (Math.exp(state.prate * dt) - 1));
+  var rate = (w.balance + pending) * irps * Math.exp(state.rate * dt);
+  if (w.deposits * (Math.exp(state.prate * dt) - 1) < w.deposits) {
+    rate += w.deposits * prps * Math.exp(state.prate * dt);
   }
   return rate;
 }
@@ -303,15 +302,23 @@ function initCards() {
     var card = document.createElement('div');
     card.className = 'wallet-card';
     card.id = 'card-' + w.name;
-    card.innerHTML =
-      '<div class="name">' + w.name + '</div>' +
-      '<div class="acct-row"><span class="label">Deposits</span><span class="value" id="dep-' + w.name + '"></span></div>' +
-      '<div class="acct-row pending"><span class="label">Pending</span><span class="value" id="pnd-' + w.name + '"></span></div>' +
-      '<div class="acct-row available"><span class="label">Available</span><span class="value" id="imm-' + w.name + '"></span></div>' +
-      '<div class="acct-row interest"><span class="label">Interest</span><span class="value" id="int-' + w.name + '"></span></div>' +
-      '<div class="acct-row balance-row"><span class="label">Balance</span><span class="value" id="bal-' + w.name + '"></span></div>' +
-      '<div class="rate" id="rate-' + w.name + '"></div>' +
-      '<div class="acct-row sent"><span class="label">Sent</span><span class="value" id="snt-' + w.name + '"></span></div>';
+    if (w.name === 'Koi') {
+      card.innerHTML =
+        '<div class="name">' + w.name + '</div>' +
+        '<div class="acct-row balance-row"><span class="label">Balance</span><span class="value" id="bal-' + w.name + '"></span></div>' +
+        '<div class="rate" id="rate-' + w.name + '"></div>' +
+        '<div class="acct-row sent"><span class="label">Sent</span><span class="value" id="snt-' + w.name + '"></span></div>';
+    } else {
+      card.innerHTML =
+        '<div class="name">' + w.name + '</div>' +
+        '<div class="acct-row"><span class="label">Deposits</span><span class="value" id="dep-' + w.name + '"></span></div>' +
+        '<div class="acct-row pending"><span class="label">Pending</span><span class="value" id="pnd-' + w.name + '"></span></div>' +
+        '<div class="acct-row available"><span class="label">Available</span><span class="value" id="imm-' + w.name + '"></span></div>' +
+        '<div class="acct-row interest"><span class="label">Interest</span><span class="value" id="int-' + w.name + '"></span></div>' +
+        '<div class="acct-row balance-row"><span class="label">Balance</span><span class="value" id="bal-' + w.name + '"></span></div>' +
+        '<div class="rate" id="rate-' + w.name + '"></div>' +
+        '<div class="acct-row sent"><span class="label">Sent</span><span class="value" id="snt-' + w.name + '"></span></div>';
+    }
     c.appendChild(card);
     sf.add(new Option(w.name, w.name));
     st.add(new Option(w.name, w.name));
@@ -339,10 +346,12 @@ function render() {
     var rate = calcRate(w, t);
     var balEl = document.getElementById('bal-' + w.name);
     if (!balEl) continue;
-    document.getElementById('dep-' + w.name).textContent = fmt(a.deposits);
-    document.getElementById('pnd-' + w.name).textContent = fmt(a.pending);
-    document.getElementById('imm-' + w.name).textContent = fmt(a.available);
-    document.getElementById('int-' + w.name).textContent = fmt(a.interest);
+    if (w.name !== 'Koi') {
+      document.getElementById('dep-' + w.name).textContent = fmt(a.deposits);
+      document.getElementById('pnd-' + w.name).textContent = fmt(a.pending);
+      document.getElementById('imm-' + w.name).textContent = fmt(a.available);
+      document.getElementById('int-' + w.name).textContent = fmt(a.interest);
+    }
     balEl.textContent = fmt(a.total);
     document.getElementById('rate-' + w.name).textContent = '+' + fmt(rate) + '/sec';
     document.getElementById('snt-' + w.name).textContent = fmt(a.sent);
