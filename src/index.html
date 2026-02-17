@@ -239,7 +239,7 @@ function fmt(n) {
   var s = n < 0 ? '-' : '\u00a0';
   var v, u;
   if (a >= 1e18)      { v = a / 1e18; u = 'eKoi'; }
-  else if (a >= 1e15) { v = a / 1e15; u = 'pKoi'; }
+  else if (a >= 1e15) { v = a / 1e15; u = 'qKoi'; }
   else if (a >= 1e12) { v = a / 1e12; u = 'tKoi'; }
   else if (a >= 1e9)  { v = a / 1e9;  u = 'bKoi'; }
   else if (a >= 1e6)  { v = a / 1e6;  u = 'mKoi'; }
