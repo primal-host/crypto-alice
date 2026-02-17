@@ -68,23 +68,24 @@ impl App {
     fn new(notify: broadcast::Sender<()>) -> Self {
         let t = now();
         let mut wallets = vec![
-            Wallet { name: "Alice".into(), balance: TOTAL_SUPPLY, t, pending: vec![] },
+            Wallet { name: "Koi".into(), balance: TOTAL_SUPPLY, t, pending: vec![] },
+            Wallet { name: "Alice".into(), balance: 0.0, t, pending: vec![] },
             Wallet { name: "Bob".into(), balance: 0.0, t, pending: vec![] },
             Wallet { name: "Carol".into(), balance: 0.0, t, pending: vec![] },
             Wallet { name: "Dan".into(), balance: 0.0, t, pending: vec![] },
             Wallet { name: "Eve".into(), balance: 0.0, t, pending: vec![] },
         ];
 
-        wallets[0].balance -= GIFT * 4.0;
+        wallets[0].balance -= GIFT * 5.0;
         let mut log = Vec::new();
-        for i in 1..5 {
+        for i in 1..6 {
             wallets[i].pending.push(Pending {
                 amount: GIFT,
                 t,
-                from: "Alice".into(),
+                from: "Koi".into(),
             });
             log.push(TxLog {
-                from: "Alice".into(),
+                from: "Koi".into(),
                 to: wallets[i].name.clone(),
                 amount: GIFT,
                 t,
@@ -122,7 +123,7 @@ impl App {
             .collect();
 
         if i == 0 {
-            // Alice: no interest, just absorb arrived pending
+            // Koi reserve: no interest, just absorb arrived pending
             self.wallets[0].balance += arrived;
         } else {
             // Non-Alice: earn interest, deduct it from Alice
