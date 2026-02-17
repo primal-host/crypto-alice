@@ -379,7 +379,6 @@ document.getElementById('btn-send').addEventListener('click', async function() {
   errEl.textContent = '';
 
   if (!amount || amount <= 0) { errEl.textContent = 'Enter a valid amount'; return; }
-  if (from === to) { errEl.textContent = 'Cannot send to self'; return; }
 
   this.disabled = true;
   try {

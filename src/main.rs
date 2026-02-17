@@ -111,12 +111,60 @@ impl App {
         self.wallets[0].balance -= pending + interest;
     }
 
-    fn send(&mut self, from: usize, to: usize, amount: f64) -> Result<(), String> {
-        if from == to {
-            return Err("Cannot send to self".into());
+    fn early_settle(&mut self, i: usize, mut amount: f64) -> Result<(), String> {
+        if i == 0 {
+            return Err("Koi cannot settle".into());
         }
+        let t = now();
+        let w = &self.wallets[i];
+        let dt = (t - w.t) / SPY;
+
+        let pending = (w.deposits * ((PRATE * dt).exp() - 1.0)).min(w.deposits);
+        let interest = (w.balance + pending) * ((RATE * dt).exp() - 1.0);
+        let available = pending + w.deposits / 3.0;
+
+        if amount > available {
+            return Err("Exceeds available".into());
+        }
+
+        if amount <= pending {
+            // Free settlement of pending + all interest
+            self.wallets[i].balance += amount + interest;
+            self.wallets[i].deposits -= amount;
+            self.wallets[i].t = t;
+            self.wallets[0].balance -= amount + interest;
+        } else {
+            // Settle all pending free, early-settle excess with 1/3 fee
+            let mut excess = amount - pending;
+            excess = excess.min(available * 2.0 / 3.0);
+            let fee = excess / 3.0;
+
+            self.wallets[i].balance += pending + excess - fee + interest;
+            self.wallets[i].deposits -= pending + excess;
+            self.wallets[i].t = t;
+            self.wallets[0].balance -= pending + interest;
+            self.wallets[0].balance += fee;
+            amount = pending + excess;
+        }
+
+        let name = self.wallets[i].name.clone();
+        self.log.push(TxLog {
+            from: name.clone(),
+            to: name,
+            amount,
+            t,
+        });
+
+        let _ = self.notify.send(());
+        Ok(())
+    }
+
+    fn send(&mut self, from: usize, to: usize, amount: f64) -> Result<(), String> {
         if amount <= 0.0 {
             return Err("Amount must be positive".into());
+        }
+        if from == to {
+            return self.early_settle(from, amount);
         }
 
         self.settle(from);
