@@ -263,7 +263,10 @@ function calcAccounts(w, t) {
 }
 
 function calcKoiBal(t) {
-  var bal = state.wallets[0].balance;
+  var koi = state.wallets[0];
+  var dt0 = (t - koi.t) / state.spy;
+  var koiPnd = Math.min(koi.deposits, koi.deposits * (Math.exp(state.prate * dt0) - 1));
+  var bal = koi.balance + koiPnd;
   for (var i = 1; i < state.wallets.length; i++) {
     var o = state.wallets[i];
     var dt = (t - o.t) / state.spy;

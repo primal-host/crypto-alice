@@ -92,7 +92,12 @@ impl App {
     fn settle(&mut self, i: usize) {
         let t = now();
         if i == 0 {
-            // Koi: no interest
+            // Koi: pending only, no interest
+            let w = &self.wallets[0];
+            let dt = (t - w.t) / SPY;
+            let pending = (w.deposits * ((PRATE * dt).exp() - 1.0)).min(w.deposits);
+            self.wallets[0].balance += pending;
+            self.wallets[0].deposits -= pending;
             self.wallets[0].t = t;
             return;
         }
@@ -133,21 +138,29 @@ impl App {
         self.wallets[i].t = t;
         self.wallets[0].balance -= pending + interest;
 
-        // Early settlement: wallet gets amount, Koi gets fee
+        // Early settlement: wallet gets amount, fee goes to Koi deposits
         if amount > 0.0 {
             let fee = amount / 2.0;
             self.wallets[i].balance += amount;
             self.wallets[i].deposits -= amount + fee;
-            self.wallets[0].balance += fee;
+            self.wallets[0].deposits += fee;
         }
 
         let name = self.wallets[i].name.clone();
         self.log.push(TxLog {
             from: name.clone(),
-            to: name,
+            to: name.clone(),
             amount,
             t,
         });
+        if amount > 0.0 {
+            self.log.push(TxLog {
+                from: name,
+                to: "Koi".into(),
+                amount: amount / 2.0,
+                t,
+            });
+        }
 
         let _ = self.notify.send(());
         Ok(())
