@@ -42,13 +42,6 @@ main {
   font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
   word-break: break-all;
 }
-.koi-rate {
-  font-size: 0.8rem;
-  color: #f87171;
-  margin-top: 0.25rem;
-  font-variant-numeric: tabular-nums;
-  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
-}
 .wallets {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -197,7 +190,6 @@ main {
 <main>
   <div class="koi-card">
     <div class="koi-balance" id="koi-bal"></div>
-    <div class="koi-rate" id="koi-rate"></div>
   </div>
 
   <div class="wallets" id="wallets"></div>
@@ -335,12 +327,11 @@ function render() {
 
   // Koi banner
   var koiBal = calcKoiBal(t);
-  document.getElementById('koi-bal').textContent = fmt(koiBal);
-  var drain = 0;
-  for (var i = 1; i < state.wallets.length; i++) {
-    drain += calcRate(state.wallets[i], t);
-  }
-  document.getElementById('koi-rate').textContent = '-' + fmt(drain) + '/sec';
+  var whole = Math.floor(koiBal);
+  var frac = Math.floor((koiBal - whole) * 1e9);
+  var ws = whole.toLocaleString('en-US');
+  var fs = ('000000000' + frac).slice(-9);
+  document.getElementById('koi-bal').textContent = ws + '.' + fs + ' Koi';
 
   // All wallets
   for (var i = 0; i < state.wallets.length; i++) {
