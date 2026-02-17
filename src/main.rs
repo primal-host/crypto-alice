@@ -64,7 +64,7 @@ impl App {
     fn new(notify: broadcast::Sender<()>) -> Self {
         let t = now();
         let mut wallets = vec![
-            Wallet { name: "Koi".into(), deposits: 0.0, balance: TOTAL_SUPPLY, sent: 0.0, t },
+            Wallet { name: "Koi".into(), deposits: TOTAL_SUPPLY, balance: 0.0, sent: 0.0, t },
             Wallet { name: "Alice".into(), deposits: 0.0, balance: 0.0, sent: 0.0, t },
             Wallet { name: "Bob".into(), deposits: 0.0, balance: 0.0, sent: 0.0, t },
             Wallet { name: "Carol".into(), deposits: 0.0, balance: 0.0, sent: 0.0, t },
@@ -72,7 +72,7 @@ impl App {
             Wallet { name: "Eve".into(), deposits: 0.0, balance: 0.0, sent: 0.0, t },
         ];
 
-        wallets[0].balance -= GIFT * 5.0;
+        wallets[0].deposits -= GIFT * 5.0;
         wallets[0].sent = GIFT * 5.0;
         let mut log = Vec::new();
         for i in 1..6 {
