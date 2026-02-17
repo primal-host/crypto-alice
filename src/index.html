@@ -78,7 +78,7 @@ main {
 .acct-row .label { color: #71717a; }
 .acct-row .value { text-align: right; font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; }
 .acct-row.pending .value { color: #f59e0b; }
-.acct-row.immediate .value { color: #fb923c; }
+.acct-row.available .value { color: #fb923c; }
 .acct-row.interest .value { color: #4ade80; }
 .acct-row.sent .value { color: #f87171; }
 .acct-row.balance-row {
@@ -255,7 +255,7 @@ function calcAccounts(w, t) {
   return {
     deposits: w.deposits,
     pending: pending,
-    immediate: pending + w.deposits / 3,
+    available: pending + w.deposits / 3,
     interest: interest,
     total: w.balance + pending + interest,
     sent: w.sent
@@ -303,7 +303,7 @@ function initCards() {
         '<div class="name">' + w.name + '</div>' +
         '<div class="acct-row"><span class="label">Deposits</span><span class="value" id="dep-' + w.name + '"></span></div>' +
         '<div class="acct-row pending"><span class="label">Pending</span><span class="value" id="pnd-' + w.name + '"></span></div>' +
-        '<div class="acct-row immediate"><span class="label">Immediate</span><span class="value" id="imm-' + w.name + '"></span></div>' +
+        '<div class="acct-row available"><span class="label">Available</span><span class="value" id="imm-' + w.name + '"></span></div>' +
         '<div class="acct-row interest"><span class="label">Interest</span><span class="value" id="int-' + w.name + '"></span></div>' +
         '<div class="acct-row balance-row"><span class="label">Balance</span><span class="value" id="bal-' + w.name + '"></span></div>' +
         '<div class="rate" id="rate-' + w.name + '"></div>' +
@@ -338,7 +338,7 @@ function render() {
     if (!balEl) continue;
     document.getElementById('dep-' + w.name).textContent = fmt(a.deposits);
     document.getElementById('pnd-' + w.name).textContent = fmt(a.pending);
-    document.getElementById('imm-' + w.name).textContent = fmt(a.immediate);
+    document.getElementById('imm-' + w.name).textContent = fmt(a.available);
     document.getElementById('int-' + w.name).textContent = fmt(a.interest);
     balEl.textContent = fmt(a.total);
     document.getElementById('rate-' + w.name).textContent = '+' + fmt(rate) + '/sec';
