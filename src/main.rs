@@ -17,7 +17,7 @@ use tokio::sync::{broadcast, Mutex};
 const RATE: f64 = 0.287_682_072_449_862; // ln(4/3)
 const SPY: f64 = 365.25 * 24.0 * 3600.0; // seconds per year
 const TOTAL_SUPPLY: f64 = 1_000_000_000_000_000.0;
-const GIFT: f64 = 1_000_000.0;
+const GIFT: f64 = 110_000.0;
 
 fn now() -> f64 {
     SystemTime::now()
