@@ -15,6 +15,7 @@ use std::{
 use tokio::sync::{broadcast, Mutex};
 
 const RATE: f64 = 0.287_682_072_449_862; // ln(4/3)
+const PRATE: f64 = RATE * 100.0; // pending rate
 const SPY: f64 = 365.25 * 24.0 * 3600.0; // seconds per year
 const TOTAL_SUPPLY: f64 = 1_000_000_000_000_000.0;
 const GIFT: f64 = 110_000.0;
@@ -48,6 +49,7 @@ struct Snapshot {
     wallets: Vec<Wallet>,
     log: Vec<TxLog>,
     rate: f64,
+    prate: f64,
     spy: f64,
     t: f64,
 }
@@ -99,10 +101,9 @@ impl App {
 
         let w = &self.wallets[i];
         let dt = (t - w.t) / SPY;
-        let exp = (RATE * dt).exp();
 
-        let pending = (w.deposits * (exp - 1.0)).min(w.deposits);
-        let interest = w.balance * (exp - 1.0);
+        let pending = (w.deposits * ((PRATE * dt).exp() - 1.0)).min(w.deposits);
+        let interest = w.balance * ((RATE * dt).exp() - 1.0);
 
         self.wallets[i].balance += pending + interest;
         self.wallets[i].deposits -= pending;
@@ -154,6 +155,7 @@ impl App {
             wallets: self.wallets.clone(),
             log: self.log.clone(),
             rate: RATE,
+            prate: PRATE,
             spy: SPY,
             t: now(),
         }
