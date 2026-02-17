@@ -16,6 +16,7 @@ use tokio::sync::{broadcast, Mutex};
 
 const RATE: f64 = 0.287_682_072_449_862; // ln(4/3)
 const PRATE: f64 = RATE * 10.0; // pending rate
+const KPRATE: f64 = RATE / 10.0; // koi pending rate
 const SPY: f64 = 365.25 * 24.0 * 3600.0; // seconds per year
 const TOTAL_SUPPLY: f64 = 1_000_000_000_000_000.0;
 const GIFT: f64 = 100_000.0;
@@ -50,6 +51,7 @@ struct Snapshot {
     log: Vec<TxLog>,
     rate: f64,
     prate: f64,
+    kprate: f64,
     spy: f64,
     t: f64,
 }
@@ -94,7 +96,7 @@ impl App {
             // Koi: pending only, no interest
             let w = &self.wallets[0];
             let dt = (t - w.t) / SPY;
-            let pending = (w.deposits * ((PRATE * dt).exp() - 1.0)).min(w.deposits);
+            let pending = (w.deposits * ((KPRATE * dt).exp() - 1.0)).min(w.deposits);
             self.wallets[0].balance += pending;
             self.wallets[0].deposits -= pending;
             self.wallets[0].t = t;
@@ -208,6 +210,7 @@ impl App {
             log: self.log.clone(),
             rate: RATE,
             prate: PRATE,
+            kprate: KPRATE,
             spy: SPY,
             t: now(),
         }

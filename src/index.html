@@ -250,7 +250,8 @@ function fmt(n) {
 
 function calcAccounts(w, t) {
   var dt = (t - w.t) / state.spy;
-  var pending = Math.min(w.deposits, w.deposits * (Math.exp(state.prate * dt) - 1));
+  var pr = w.name === 'Koi' ? state.kprate : state.prate;
+  var pending = Math.min(w.deposits, w.deposits * (Math.exp(pr * dt) - 1));
   var interest = w.name === 'Koi' ? 0 : (w.balance + pending) * (Math.exp(state.rate * dt) - 1);
   return {
     deposits: w.deposits,
@@ -265,7 +266,7 @@ function calcAccounts(w, t) {
 function calcKoiBal(t) {
   var koi = state.wallets[0];
   var dt0 = (t - koi.t) / state.spy;
-  var koiPnd = Math.min(koi.deposits, koi.deposits * (Math.exp(state.prate * dt0) - 1));
+  var koiPnd = Math.min(koi.deposits, koi.deposits * (Math.exp(state.kprate * dt0) - 1));
   var bal = koi.balance + koiPnd;
   for (var i = 1; i < state.wallets.length; i++) {
     var o = state.wallets[i];
@@ -279,12 +280,13 @@ function calcKoiBal(t) {
 
 function calcRate(w, t) {
   var dt = (t - w.t) / state.spy;
+  var pr = w.name === 'Koi' ? state.kprate : state.prate;
   var irps = state.rate / state.spy;
-  var prps = state.prate / state.spy;
-  var pending = Math.min(w.deposits, w.deposits * (Math.exp(state.prate * dt) - 1));
+  var prps = pr / state.spy;
+  var pending = Math.min(w.deposits, w.deposits * (Math.exp(pr * dt) - 1));
   var rate = w.name === 'Koi' ? 0 : (w.balance + pending) * irps * Math.exp(state.rate * dt);
-  if (w.deposits * (Math.exp(state.prate * dt) - 1) < w.deposits) {
-    rate += w.deposits * prps * Math.exp(state.prate * dt);
+  if (w.deposits * (Math.exp(pr * dt) - 1) < w.deposits) {
+    rate += w.deposits * prps * Math.exp(pr * dt);
   }
   return rate;
 }
