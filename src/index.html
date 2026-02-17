@@ -210,6 +210,20 @@ function fmt(n) {
 }
 
 function calcBal(w, t) {
+  if (w.name === 'Alice') {
+    // Alice: no interest, but subtract unsettled interest owed to all others
+    let bal = w.balance;
+    for (const p of w.pending) {
+      const pdt = (t - p.t) / state.spy;
+      bal += p.amount * (1 - Math.exp(-state.rate * pdt));
+    }
+    for (const o of state.wallets) {
+      if (o.name === 'Alice') continue;
+      const dt = (t - o.t) / state.spy;
+      bal -= o.balance * (Math.exp(state.rate * dt) - 1);
+    }
+    return bal;
+  }
   const dt = (t - w.t) / state.spy;
   let bal = w.balance * Math.exp(state.rate * dt);
   for (const p of w.pending) {
@@ -256,13 +270,26 @@ function render() {
   const t = sNow();
   for (const w of state.wallets) {
     const bal = calcBal(w, t);
-    const perSec = bal * (Math.exp(state.rate / state.spy) - 1);
     const balEl = document.getElementById('bal-' + w.name);
     const rateEl = document.getElementById('rate-' + w.name);
     const pndEl = document.getElementById('pnd-' + w.name);
     if (!balEl) continue;
     balEl.textContent = fmt(bal) + ' koi';
-    rateEl.textContent = '+' + fmt(perSec) + '/sec';
+    if (w.name === 'Alice') {
+      // Alice's rate: sum of interest being drained by all others
+      let drain = 0;
+      for (const o of state.wallets) {
+        if (o.name === 'Alice') continue;
+        const obal = calcBal(o, t);
+        drain += obal * (Math.exp(state.rate / state.spy) - 1);
+      }
+      rateEl.textContent = '-' + fmt(drain) + '/sec';
+      rateEl.style.color = '#f87171';
+    } else {
+      const perSec = bal * (Math.exp(state.rate / state.spy) - 1);
+      rateEl.textContent = '+' + fmt(perSec) + '/sec';
+      rateEl.style.color = '#4ade80';
+    }
 
     let html = '';
     for (const p of w.pending) {
