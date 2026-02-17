@@ -97,8 +97,6 @@ impl App {
     fn settle(&mut self, i: usize) {
         let t = now();
         let w = &self.wallets[i];
-        let dt = (t - w.t) / SPY;
-        let base = w.balance * (RATE * dt).exp();
 
         let arrived: f64 = w
             .pending
@@ -123,7 +121,16 @@ impl App {
             })
             .collect();
 
-        self.wallets[i].balance = base + arrived;
+        if i == 0 {
+            // Alice: no interest, just absorb arrived pending
+            self.wallets[0].balance += arrived;
+        } else {
+            // Non-Alice: earn interest, deduct it from Alice
+            let dt = (t - w.t) / SPY;
+            let interest = w.balance * ((RATE * dt).exp() - 1.0);
+            self.wallets[i].balance = w.balance + interest + arrived;
+            self.wallets[0].balance -= interest;
+        }
         self.wallets[i].t = t;
         self.wallets[i].pending = remaining;
     }
