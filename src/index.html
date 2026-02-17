@@ -64,32 +64,38 @@ main {
   color: #71717a;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.75rem;
 }
-.wallet-card .balance {
-  font-size: 1.25rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  word-break: break-all;
-}
-.wallet-card .rate {
-  font-size: 0.75rem;
-  color: #4ade80;
-  margin-top: 0.25rem;
-  font-variant-numeric: tabular-nums;
-}
-.wallet-card .pending-label {
-  font-size: 0.7rem;
-  color: #71717a;
-  text-transform: uppercase;
-  margin-top: 0.75rem;
-  margin-bottom: 0.25rem;
-}
-.wallet-card .pending-item {
+.acct-row {
+  display: flex;
+  justify-content: space-between;
   font-size: 0.8rem;
-  color: #f59e0b;
+  padding: 0.15rem 0;
   font-variant-numeric: tabular-nums;
-  padding: 0.1rem 0;
+}
+.acct-row .label { color: #71717a; }
+.acct-row .value { text-align: right; }
+.acct-row.pending .value { color: #f59e0b; }
+.acct-row.interest .value { color: #4ade80; }
+.acct-row.sent .value { color: #f87171; }
+.acct-row.balance-row {
+  font-size: 1.1rem;
+  font-weight: 700;
+  padding: 0.5rem 0 0.25rem;
+  border-top: 1px solid #27272a;
+  margin-top: 0.35rem;
+}
+.acct-row.balance-row .label { color: #a1a1aa; }
+.wallet-card .rate {
+  font-size: 0.7rem;
+  color: #4ade80;
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 0.35rem;
+}
+.acct-row.sent {
+  border-top: 1px solid #27272a;
+  margin-top: 0.35rem;
+  padding-top: 0.35rem;
 }
 .section {
   background: #16181d;
@@ -220,61 +226,78 @@ main {
 </main>
 
 <script>
-let state = null;
-let tOff = 0;
+var state = null;
+var tOff = 0;
 
 function sNow() { return Date.now() / 1000 + tOff; }
 
 function fmt(n) {
   if (n === 0) return '0.00';
-  const a = Math.abs(n);
+  var a = Math.abs(n);
   if (a >= 1e12) return n.toLocaleString('en-US', {maximumFractionDigits: 0});
   if (a >= 1e6) return n.toLocaleString('en-US', {maximumFractionDigits: 2});
   if (a >= 1) return n.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 6});
   return n.toLocaleString('en-US', {minimumFractionDigits: 6, maximumFractionDigits: 10});
 }
 
-function calcBal(w, t) {
-  if (w.name === 'Koi') {
-    let bal = w.balance;
-    for (const p of w.pending) {
-      const pdt = (t - p.t) / state.spy;
-      bal += p.amount * (1 - Math.exp(-state.rate * pdt));
-    }
-    for (const o of state.wallets) {
-      if (o.name === 'Koi') continue;
-      const dt = (t - o.t) / state.spy;
-      bal -= o.balance * (Math.exp(state.rate * dt) - 1);
-    }
-    return bal;
-  }
-  const dt = (t - w.t) / state.spy;
-  let bal = w.balance * Math.exp(state.rate * dt);
-  for (const p of w.pending) {
-    const pdt = (t - p.t) / state.spy;
-    bal += p.amount * (1 - Math.exp(-state.rate * pdt));
+function calcAccounts(w, t) {
+  var dt = (t - w.t) / state.spy;
+  var exp = Math.exp(state.rate * dt);
+  var pending = Math.min(w.deposits, w.deposits * (exp - 1));
+  var interest = w.balance * (exp - 1);
+  return {
+    deposits: w.deposits,
+    pending: pending,
+    interest: interest,
+    total: w.balance + pending + interest,
+    sent: w.sent
+  };
+}
+
+function calcKoiBal(t) {
+  var bal = state.wallets[0].balance;
+  for (var i = 1; i < state.wallets.length; i++) {
+    var o = state.wallets[i];
+    var dt = (t - o.t) / state.spy;
+    var exp = Math.exp(state.rate * dt);
+    bal -= Math.min(o.deposits, o.deposits * (exp - 1));
+    bal -= o.balance * (exp - 1);
   }
   return bal;
 }
 
+function calcRate(w, t) {
+  var dt = (t - w.t) / state.spy;
+  var exp = Math.exp(state.rate * dt);
+  var rps = state.rate / state.spy;
+  var rate = w.balance * rps * exp;
+  if (w.deposits * (exp - 1) < w.deposits) {
+    rate += w.deposits * rps * exp;
+  }
+  return rate;
+}
+
 function initCards() {
-  const c = document.getElementById('wallets');
+  var c = document.getElementById('wallets');
   c.innerHTML = '';
-  const sf = document.getElementById('sel-from');
-  const st = document.getElementById('sel-to');
+  var sf = document.getElementById('sel-from');
+  var st = document.getElementById('sel-to');
   sf.innerHTML = '';
   st.innerHTML = '';
-  for (const w of state.wallets) {
-    // Koi goes in the top banner, not the grid
+  for (var i = 0; i < state.wallets.length; i++) {
+    var w = state.wallets[i];
     if (w.name !== 'Koi') {
-      const card = document.createElement('div');
+      var card = document.createElement('div');
       card.className = 'wallet-card';
       card.id = 'card-' + w.name;
       card.innerHTML =
         '<div class="name">' + w.name + '</div>' +
-        '<div class="balance" id="bal-' + w.name + '"></div>' +
+        '<div class="acct-row"><span class="label">Deposits</span><span class="value" id="dep-' + w.name + '"></span></div>' +
+        '<div class="acct-row pending"><span class="label">Pending</span><span class="value" id="pnd-' + w.name + '"></span></div>' +
+        '<div class="acct-row interest"><span class="label">Interest</span><span class="value" id="int-' + w.name + '"></span></div>' +
+        '<div class="acct-row balance-row"><span class="label">Balance</span><span class="value" id="bal-' + w.name + '"></span></div>' +
         '<div class="rate" id="rate-' + w.name + '"></div>' +
-        '<div id="pnd-' + w.name + '"></div>';
+        '<div class="acct-row sent"><span class="label">Sent</span><span class="value" id="snt-' + w.name + '"></span></div>';
       c.appendChild(card);
     }
     sf.add(new Option(w.name, w.name));
@@ -285,65 +308,52 @@ function initCards() {
 
 function render() {
   if (!state) return;
-  const t = sNow();
+  var t = sNow();
 
   // Koi banner
-  const koi = state.wallets.find(function(w) { return w.name === 'Koi'; });
-  if (koi) {
-    const koiBal = calcBal(koi, t);
-    document.getElementById('koi-bal').textContent = fmt(koiBal) + ' koi';
-    let drain = 0;
-    for (const o of state.wallets) {
-      if (o.name === 'Koi') continue;
-      const obal = calcBal(o, t);
-      drain += obal * (Math.exp(state.rate / state.spy) - 1);
-    }
-    document.getElementById('koi-rate').textContent = '-' + fmt(drain) + '/sec';
+  var koiBal = calcKoiBal(t);
+  document.getElementById('koi-bal').textContent = fmt(koiBal) + ' koi';
+  var drain = 0;
+  for (var i = 1; i < state.wallets.length; i++) {
+    drain += calcRate(state.wallets[i], t);
   }
+  document.getElementById('koi-rate').textContent = '-' + fmt(drain) + '/sec';
 
   // Regular wallets
-  for (const w of state.wallets) {
-    if (w.name === 'Koi') continue;
-    const bal = calcBal(w, t);
-    const perSec = bal * (Math.exp(state.rate / state.spy) - 1);
-    const balEl = document.getElementById('bal-' + w.name);
-    const rateEl = document.getElementById('rate-' + w.name);
-    const pndEl = document.getElementById('pnd-' + w.name);
+  for (var i = 1; i < state.wallets.length; i++) {
+    var w = state.wallets[i];
+    var a = calcAccounts(w, t);
+    var rate = calcRate(w, t);
+    var balEl = document.getElementById('bal-' + w.name);
     if (!balEl) continue;
-    balEl.textContent = fmt(bal) + ' koi';
-    rateEl.textContent = '+' + fmt(perSec) + '/sec';
-
-    let html = '';
-    for (const p of w.pending) {
-      const pdt = (t - p.t) / state.spy;
-      const rem = p.amount * Math.exp(-state.rate * pdt);
-      if (rem > 0.000001) {
-        html += '<div class="pending-item">\u2190 ' + p.from + ': ' + fmt(rem) + ' koi</div>';
-      }
-    }
-    pndEl.innerHTML = html ? '<div class="pending-label">Pending</div>' + html : '';
+    document.getElementById('dep-' + w.name).textContent = fmt(a.deposits);
+    document.getElementById('pnd-' + w.name).textContent = fmt(a.pending);
+    document.getElementById('int-' + w.name).textContent = fmt(a.interest);
+    balEl.textContent = fmt(a.total) + ' koi';
+    document.getElementById('rate-' + w.name).textContent = '+' + fmt(rate) + '/sec';
+    document.getElementById('snt-' + w.name).textContent = fmt(a.sent);
   }
 }
 
 function renderLog() {
   if (!state) return;
-  const c = document.getElementById('log');
+  var c = document.getElementById('log');
   c.innerHTML = '';
-  const entries = state.log.slice().reverse();
-  for (const e of entries) {
-    const d = document.createElement('div');
+  var entries = state.log.slice().reverse();
+  for (var i = 0; i < entries.length; i++) {
+    var e = entries[i];
+    var d = document.createElement('div');
     d.className = 'log-entry';
-    const ago = fmtAgo(e.t);
     d.innerHTML =
       '<span class="detail">' + e.from + ' <span class="arrow">\u2192</span> ' +
       e.to + ': <span class="amount">' + fmt(e.amount) + '</span> koi</span>' +
-      '<span class="time">' + ago + '</span>';
+      '<span class="time">' + fmtAgo(e.t) + '</span>';
     c.appendChild(d);
   }
 }
 
 function fmtAgo(t) {
-  const s = sNow() - t;
+  var s = sNow() - t;
   if (s < 60) return Math.floor(s) + 's ago';
   if (s < 3600) return Math.floor(s / 60) + 'm ago';
   if (s < 86400) return Math.floor(s / 3600) + 'h ago';
@@ -351,10 +361,10 @@ function fmtAgo(t) {
 }
 
 document.getElementById('btn-send').addEventListener('click', async function() {
-  const from = document.getElementById('sel-from').value;
-  const to = document.getElementById('sel-to').value;
-  const amount = parseFloat(document.getElementById('inp-amount').value);
-  const errEl = document.getElementById('error');
+  var from = document.getElementById('sel-from').value;
+  var to = document.getElementById('sel-to').value;
+  var amount = parseFloat(document.getElementById('inp-amount').value);
+  var errEl = document.getElementById('error');
   errEl.textContent = '';
 
   if (!amount || amount <= 0) { errEl.textContent = 'Enter a valid amount'; return; }
@@ -362,12 +372,12 @@ document.getElementById('btn-send').addEventListener('click', async function() {
 
   this.disabled = true;
   try {
-    const res = await fetch('/api/send', {
+    var res = await fetch('/api/send', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({from, to, amount}),
+      body: JSON.stringify({from: from, to: to, amount: amount}),
     });
-    const data = await res.json();
+    var data = await res.json();
     if (!data.ok) {
       errEl.textContent = data.error || 'Transfer failed';
     } else {
@@ -379,12 +389,12 @@ document.getElementById('btn-send').addEventListener('click', async function() {
   this.disabled = false;
 });
 
-let cardsInit = false;
+var cardsInit = false;
 
 function connect() {
-  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const ws = new WebSocket(proto + '//' + location.host + '/ws');
-  const st = document.getElementById('ws-status');
+  var proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  var ws = new WebSocket(proto + '//' + location.host + '/ws');
+  var st = document.getElementById('ws-status');
 
   ws.onopen = function() {
     st.textContent = 'connected';
