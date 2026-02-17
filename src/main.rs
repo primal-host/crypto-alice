@@ -27,18 +27,12 @@ fn now() -> f64 {
 }
 
 #[derive(Clone, Serialize)]
-struct Pending {
-    amount: f64,
-    t: f64,
-    from: String,
-}
-
-#[derive(Clone, Serialize)]
 struct Wallet {
     name: String,
+    deposits: f64,
     balance: f64,
+    sent: f64,
     t: f64,
-    pending: Vec<Pending>,
 }
 
 #[derive(Clone, Serialize)]
@@ -68,22 +62,19 @@ impl App {
     fn new(notify: broadcast::Sender<()>) -> Self {
         let t = now();
         let mut wallets = vec![
-            Wallet { name: "Koi".into(), balance: TOTAL_SUPPLY, t, pending: vec![] },
-            Wallet { name: "Alice".into(), balance: 0.0, t, pending: vec![] },
-            Wallet { name: "Bob".into(), balance: 0.0, t, pending: vec![] },
-            Wallet { name: "Carol".into(), balance: 0.0, t, pending: vec![] },
-            Wallet { name: "Dan".into(), balance: 0.0, t, pending: vec![] },
-            Wallet { name: "Eve".into(), balance: 0.0, t, pending: vec![] },
+            Wallet { name: "Koi".into(), deposits: 0.0, balance: TOTAL_SUPPLY, sent: 0.0, t },
+            Wallet { name: "Alice".into(), deposits: 0.0, balance: 0.0, sent: 0.0, t },
+            Wallet { name: "Bob".into(), deposits: 0.0, balance: 0.0, sent: 0.0, t },
+            Wallet { name: "Carol".into(), deposits: 0.0, balance: 0.0, sent: 0.0, t },
+            Wallet { name: "Dan".into(), deposits: 0.0, balance: 0.0, sent: 0.0, t },
+            Wallet { name: "Eve".into(), deposits: 0.0, balance: 0.0, sent: 0.0, t },
         ];
 
         wallets[0].balance -= GIFT * 5.0;
+        wallets[0].sent = GIFT * 5.0;
         let mut log = Vec::new();
         for i in 1..6 {
-            wallets[i].pending.push(Pending {
-                amount: GIFT,
-                t,
-                from: "Koi".into(),
-            });
+            wallets[i].deposits = GIFT;
             log.push(TxLog {
                 from: "Koi".into(),
                 to: wallets[i].name.clone(),
@@ -97,43 +88,25 @@ impl App {
 
     fn settle(&mut self, i: usize) {
         let t = now();
-        let w = &self.wallets[i];
-
-        let arrived: f64 = w
-            .pending
-            .iter()
-            .map(|p| {
-                let pdt = (t - p.t) / SPY;
-                p.amount * (1.0 - (-RATE * pdt).exp())
-            })
-            .sum();
-
-        let remaining: Vec<Pending> = w
-            .pending
-            .iter()
-            .filter_map(|p| {
-                let pdt = (t - p.t) / SPY;
-                let r = p.amount * (-RATE * pdt).exp();
-                (r > 1e-9).then(|| Pending {
-                    amount: r,
-                    t,
-                    from: p.from.clone(),
-                })
-            })
-            .collect();
-
         if i == 0 {
-            // Koi reserve: no interest, just absorb arrived pending
-            self.wallets[0].balance += arrived;
-        } else {
-            // Non-Alice: earn interest, deduct it from Alice
-            let dt = (t - w.t) / SPY;
-            let interest = w.balance * ((RATE * dt).exp() - 1.0);
-            self.wallets[i].balance = w.balance + interest + arrived;
-            self.wallets[0].balance -= interest;
+            // Koi: no interest
+            self.wallets[0].t = t;
+            return;
         }
+
+        let w = &self.wallets[i];
+        let dt = (t - w.t) / SPY;
+        let exp = (RATE * dt).exp();
+
+        let pending = (w.deposits * (exp - 1.0)).min(w.deposits);
+        let interest = w.balance * (exp - 1.0);
+
+        self.wallets[i].balance += pending + interest;
+        self.wallets[i].deposits -= pending;
         self.wallets[i].t = t;
-        self.wallets[i].pending = remaining;
+
+        // Interest funded by Koi
+        self.wallets[0].balance -= pending + interest;
     }
 
     fn send(&mut self, from: usize, to: usize, amount: f64) -> Result<(), String> {
@@ -149,16 +122,19 @@ impl App {
             return Err("Insufficient balance".into());
         }
         self.wallets[from].balance -= amount;
+        self.wallets[from].sent += amount;
 
         self.settle(to);
+        if to == 0 {
+            // Koi receives directly to balance
+            self.wallets[0].balance += amount;
+        } else {
+            self.wallets[to].deposits += amount;
+        }
+
         let t = now();
         let from_name = self.wallets[from].name.clone();
         let to_name = self.wallets[to].name.clone();
-        self.wallets[to].pending.push(Pending {
-            amount,
-            t,
-            from: from_name.clone(),
-        });
         self.log.push(TxLog {
             from: from_name,
             to: to_name,
