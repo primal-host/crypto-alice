@@ -238,7 +238,9 @@ function fmt(n) {
   var a = Math.abs(n);
   var s = n < 0 ? '-' : '\u00a0';
   var v, u;
-  if (a >= 1e12)      { v = a / 1e12; u = 'tKoi'; }
+  if (a >= 1e18)      { v = a / 1e18; u = 'eKoi'; }
+  else if (a >= 1e15) { v = a / 1e15; u = 'pKoi'; }
+  else if (a >= 1e12) { v = a / 1e12; u = 'tKoi'; }
   else if (a >= 1e9)  { v = a / 1e9;  u = 'bKoi'; }
   else if (a >= 1e6)  { v = a / 1e6;  u = 'mKoi'; }
   else if (a >= 1e3)  { v = a / 1e3;  u = 'kKoi'; }
