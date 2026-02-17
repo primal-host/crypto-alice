@@ -1,0 +1,29 @@
+services:
+  alice:
+    build: .
+    image: primal-host-crypto-alice
+    container_name: crypto-alice
+    restart: unless-stopped
+    networks:
+      - infra
+    labels:
+      - "traefik.enable=true"
+      # Production (HTTPS)
+      - "traefik.http.routers.crypto-alice.rule=Host(`alice.primal.host`)"
+      - "traefik.http.routers.crypto-alice.entrypoints=https"
+      - "traefik.http.routers.crypto-alice.tls.certresolver=letsencrypt"
+      # Production HTTP->HTTPS redirect
+      - "traefik.http.routers.crypto-alice-redirect.rule=Host(`alice.primal.host`)"
+      - "traefik.http.routers.crypto-alice-redirect.entrypoints=http"
+      - "traefik.http.routers.crypto-alice-redirect.middlewares=https-redirect@docker"
+      # Local (HTTP)
+      - "traefik.http.routers.crypto-alice-local.rule=Host(`alice.localhost`)"
+      - "traefik.http.routers.crypto-alice-local.entrypoints=http"
+      # Service
+      - "traefik.http.services.crypto-alice.loadbalancer.server.port=3000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+networks:
+  infra:
+    external: true
