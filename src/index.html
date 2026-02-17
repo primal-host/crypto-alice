@@ -39,13 +39,15 @@ main {
   font-size: 2rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
   word-break: break-all;
 }
 .koi-rate {
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   color: #f87171;
   margin-top: 0.25rem;
   font-variant-numeric: tabular-nums;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
 }
 .wallets {
   display: grid;
@@ -74,12 +76,11 @@ main {
   font-variant-numeric: tabular-nums;
 }
 .acct-row .label { color: #71717a; }
-.acct-row .value { text-align: right; }
+.acct-row .value { text-align: right; font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; }
 .acct-row.pending .value { color: #f59e0b; }
 .acct-row.interest .value { color: #4ade80; }
 .acct-row.sent .value { color: #f87171; }
 .acct-row.balance-row {
-  font-size: 1.1rem;
   font-weight: 700;
   padding: 0.5rem 0 0.25rem;
   border-top: 1px solid #27272a;
@@ -87,9 +88,10 @@ main {
 }
 .acct-row.balance-row .label { color: #a1a1aa; }
 .wallet-card .rate {
-  font-size: 0.7rem;
+  font-size: 0.8rem;
   color: #4ade80;
   font-variant-numeric: tabular-nums;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
   margin-bottom: 0.35rem;
 }
 .acct-row.sent {
@@ -232,14 +234,17 @@ var tOff = 0;
 function sNow() { return Date.now() / 1000 + tOff; }
 
 function fmt(n) {
-  if (n === 0) return '0 koi';
   var a = Math.abs(n);
-  var s = n < 0 ? '-' : '';
-  if (a >= 1e12) return s + (a / 1e12).toPrecision(4) + ' tKoi';
-  if (a >= 1e9) return s + (a / 1e9).toPrecision(4) + ' bKoi';
-  if (a >= 1e6) return s + (a / 1e6).toPrecision(4) + ' mKoi';
-  if (a >= 1e3) return s + (a / 1e3).toPrecision(4) + ' kKoi';
-  return s + a.toPrecision(4) + ' koi';
+  var s = n < 0 ? '-' : '\u00a0';
+  var v, u;
+  if (a >= 1e12)      { v = a / 1e12; u = 'tKoi'; }
+  else if (a >= 1e9)  { v = a / 1e9;  u = 'bKoi'; }
+  else if (a >= 1e6)  { v = a / 1e6;  u = 'mKoi'; }
+  else if (a >= 1e3)  { v = a / 1e3;  u = 'kKoi'; }
+  else                { v = a;         u = '\u00a0koi'; }
+  var f = v.toFixed(3);
+  while (f.length < 7) f = '\u00a0' + f;
+  return s + f + ' ' + u;
 }
 
 function calcAccounts(w, t) {
