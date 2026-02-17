@@ -238,13 +238,13 @@ function fmt(n) {
   var a = Math.abs(n);
   var s = n < 0 ? '-' : '\u00a0';
   var v, u;
-  if (a >= 1e18)      { v = a / 1e18; u = 'xKoi'; }
-  else if (a >= 1e15) { v = a / 1e15; u = 'qKoi'; }
-  else if (a >= 1e12) { v = a / 1e12; u = 'tKoi'; }
-  else if (a >= 1e9)  { v = a / 1e9;  u = 'bKoi'; }
-  else if (a >= 1e6)  { v = a / 1e6;  u = 'mKoi'; }
+  if (a >= 1e9)       { v = a / 1e9;  u = 'gKoi'; }
+  else if (a >= 1e6)  { v = a / 1e6;  u = 'eKoi'; }
   else if (a >= 1e3)  { v = a / 1e3;  u = 'kKoi'; }
-  else                { v = a;         u = '\u00a0koi'; }
+  else if (a >= 1e-3) { v = a;         u = '\u00a0Koi'; }
+  else if (a >= 1e-6) { v = a * 1e3;  u = 'mKoi'; }
+  else if (a >= 1e-9) { v = a * 1e6;  u = 'uKoi'; }
+  else                { v = a * 1e9;  u = 'nKoi'; }
   var f = (Math.floor(v * 1000) / 1000).toFixed(3);
   while (f.length < 7) f = '\u00a0' + f;
   return s + f + ' ' + u;
