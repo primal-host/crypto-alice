@@ -242,7 +242,7 @@ function fmt(n) {
   else if (a >= 1e6)  { v = a / 1e6;  u = 'mKoi'; }
   else if (a >= 1e3)  { v = a / 1e3;  u = 'kKoi'; }
   else                { v = a;         u = '\u00a0koi'; }
-  var f = v.toFixed(3);
+  var f = (Math.floor(v * 1000) / 1000).toFixed(3);
   while (f.length < 7) f = '\u00a0' + f;
   return s + f + ' ' + u;
 }
