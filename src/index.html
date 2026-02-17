@@ -245,9 +245,12 @@ function fmt(n) {
   else if (a >= 1e-6) { v = a * 1e3;  u = 'mKoi'; }
   else if (a >= 1e-9) { v = a * 1e6;  u = 'uKoi'; }
   else                { v = a * 1e9;  u = 'nKoi'; }
-  var f = (Math.floor(v * 1000) / 1000).toFixed(3);
-  while (f.length < 7) f = '\u00a0' + f;
-  return s + f + ' ' + u;
+  var d = v >= 100 ? 1 : v >= 10 ? 2 : 3;
+  var p = Math.pow(10, d);
+  var f = (Math.floor(v * p) / p).toFixed(d);
+  var lead = v >= 100 ? '' : v >= 10 ? '\u00a0' : '\u00a0\u00a0';
+  var trail = d === 1 ? '\u00a0\u00a0' : d === 2 ? '\u00a0' : '';
+  return s + lead + f + trail + ' ' + u;
 }
 
 function calcAccounts(w, t) {
