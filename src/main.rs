@@ -16,7 +16,6 @@ use tokio::sync::{broadcast, Mutex};
 
 const RATE: f64 = 0.287_682_072_449_862; // ln(4/3)
 const PRATE: f64 = RATE * 10.0; // pending rate
-const KPRATE: f64 = RATE / 10.0; // koi pending rate
 const SPY: f64 = 365.25 * 24.0 * 3600.0; // seconds per year
 const TOTAL_SUPPLY: f64 = 9_223_372_036_854_775_807.0;
 const GIFT: f64 = 100_000.0;
@@ -51,7 +50,6 @@ struct Snapshot {
     log: Vec<TxLog>,
     rate: f64,
     prate: f64,
-    kprate: f64,
     spy: f64,
     t: f64,
 }
@@ -203,7 +201,6 @@ impl App {
             log: self.log.clone(),
             rate: RATE,
             prate: PRATE,
-            kprate: KPRATE,
             spy: SPY,
             t: now(),
         }
