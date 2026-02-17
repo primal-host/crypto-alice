@@ -111,7 +111,7 @@ impl App {
         self.wallets[0].balance -= pending + interest;
     }
 
-    fn early_settle(&mut self, i: usize, mut amount: f64) -> Result<(), String> {
+    fn early_settle(&mut self, i: usize, amount: f64) -> Result<(), String> {
         if i == 0 {
             return Err("Koi cannot settle".into());
         }
@@ -121,30 +121,24 @@ impl App {
 
         let pending = (w.deposits * ((PRATE * dt).exp() - 1.0)).min(w.deposits);
         let interest = (w.balance + pending) * ((RATE * dt).exp() - 1.0);
-        let available = pending + w.deposits / 3.0;
+        let available = 2.0 * (w.deposits - pending) / 3.0;
 
         if amount > available {
             return Err("Exceeds available".into());
         }
 
-        if amount <= pending {
-            // Free settlement of pending + all interest
-            self.wallets[i].balance += amount + interest;
-            self.wallets[i].deposits -= amount;
-            self.wallets[i].t = t;
-            self.wallets[0].balance -= amount + interest;
-        } else {
-            // Settle all pending free, early-settle excess with 1/3 fee
-            let mut excess = amount - pending;
-            excess = excess.min(available * 2.0 / 3.0);
-            let fee = excess / 3.0;
+        // Always settle pending + interest (free)
+        self.wallets[i].balance += pending + interest;
+        self.wallets[i].deposits -= pending;
+        self.wallets[i].t = t;
+        self.wallets[0].balance -= pending + interest;
 
-            self.wallets[i].balance += pending + excess - fee + interest;
-            self.wallets[i].deposits -= pending + excess;
-            self.wallets[i].t = t;
-            self.wallets[0].balance -= pending + interest;
+        // Early settlement: wallet gets amount, Koi gets fee
+        if amount > 0.0 {
+            let fee = amount / 2.0;
+            self.wallets[i].balance += amount;
+            self.wallets[i].deposits -= amount + fee;
             self.wallets[0].balance += fee;
-            amount = pending + excess;
         }
 
         let name = self.wallets[i].name.clone();
