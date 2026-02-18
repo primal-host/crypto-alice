@@ -44,6 +44,7 @@ struct TxLog {
     from: String,
     to: String,
     amount: f64,
+    fee: f64,
     t: f64,
 }
 
@@ -171,14 +172,7 @@ impl App {
                 from: name.clone(),
                 to: name.clone(),
                 amount: total,
-                t,
-            });
-        }
-        if amount > 0.0 {
-            self.log.push(TxLog {
-                from: name,
-                to: "Koi".into(),
-                amount: amount / 3.0,
+                fee: if amount > 0.0 { amount / 3.0 } else { 0.0 },
                 t,
             });
         }
@@ -245,19 +239,12 @@ impl App {
         let from_name = self.wallets[from].name.clone();
         let to_name = self.wallets[to].name.clone();
         self.log.push(TxLog {
-            from: from_name.clone(),
+            from: from_name,
             to: to_name,
             amount: send_amount,
+            fee,
             t,
         });
-        if fee > 0.0 {
-            self.log.push(TxLog {
-                from: from_name,
-                to: "Koi".into(),
-                amount: fee,
-                t,
-            });
-        }
 
         let _ = self.notify.send(());
         Ok(())
