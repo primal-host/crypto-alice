@@ -338,6 +338,30 @@ async fn main() {
     let (tx, _) = broadcast::channel(64);
     let state: S = Arc::new(Mutex::new(App::new(tx)));
 
+    // Random transactions once per second
+    let sim = state.clone();
+    tokio::spawn(async move {
+        let mut rng = rand::thread_rng();
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(1));
+        loop {
+            interval.tick().await;
+            let mut app = sim.lock().await;
+            let n = app.wallets.len();
+            // Pick from/to excluding Koi (0) and Alice (1)
+            let from = rng.gen_range(2..n);
+            let mut to = rng.gen_range(2..n - 1);
+            if to >= from {
+                to += 1;
+            }
+            let pct = rng.gen_range(0.01..=0.10);
+            let bal = app.wallets[from].balance;
+            if bal > 0.0 {
+                let amount = bal * pct;
+                let _ = app.send(from, to, amount);
+            }
+        }
+    });
+
     let app = Router::new()
         .route("/", get(index))
         .route("/ws", get(ws_upgrade))
