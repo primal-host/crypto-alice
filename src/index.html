@@ -270,7 +270,8 @@ main {
 <script>
 var state = null;
 var tOff = 0;
-var prevBal = {};
+var balHistory = {};
+var LOOKBACK = 10;
 
 function sNow() { return Date.now() / 1000 + tOff; }
 
@@ -411,9 +412,14 @@ function render() {
     } else if (w.contract) {
       balEl.textContent = fmt(w.balance);
       var rateEl = document.getElementById('rate-' + w.name);
-      if (prevBal[w.name] !== undefined) {
-        var r = prevBal[w.name];
-        rateEl.textContent = (r >= 0 ? '+' : '') + fmt(r) + '/sec';
+      var hist = balHistory[w.name];
+      if (hist && hist.length > 1) {
+        var first = hist[0], last = hist[hist.length - 1];
+        var dt = last.t - first.t;
+        if (dt > 0) {
+          var r = (last.b - first.b) / dt;
+          rateEl.textContent = (r >= 0 ? '+' : '') + fmt(r) + '/sec';
+        }
       }
     } else {
       var a = calcAccounts(w, t);
@@ -557,15 +563,16 @@ function connect() {
     state = JSON.parse(e.data);
     tOff = state.t - Date.now() / 1000;
     if (!cardsInit) { initCards(); buildHalvings(); cardsInit = true; }
-    // Track contract balance deltas for deposit rate
-    if (prev) {
-      var dt = state.t - prev.t;
-      if (dt > 0) {
-        for (var i = 0; i < state.wallets.length; i++) {
-          var w = state.wallets[i];
-          if (w.contract && prev.wallets[i]) {
-            prevBal[w.name] = (w.balance - prev.wallets[i].balance) / dt;
-          }
+    // Track contract balance history for smoothed deposit rate
+    for (var i = 0; i < state.wallets.length; i++) {
+      var w = state.wallets[i];
+      if (w.contract) {
+        if (!balHistory[w.name]) balHistory[w.name] = [];
+        balHistory[w.name].push({ t: state.t, b: w.balance });
+        // Trim samples older than lookback window
+        var cutoff = state.t - LOOKBACK;
+        while (balHistory[w.name].length > 1 && balHistory[w.name][0].t < cutoff) {
+          balHistory[w.name].shift();
         }
       }
     }
