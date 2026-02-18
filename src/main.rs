@@ -90,33 +90,25 @@ impl App {
 
         wallets[0].balance = TOTAL_SUPPLY;
 
-        // Alice gets 1%
-        wallets[1].locked = GIFT_ALICE;
-
-        // Remaining 997 wallets split 9% randomly
+        // Compute gift amounts
+        let mut gifts = vec![0.0; n];
+        gifts[1] = GIFT_ALICE;
         let mut rng = rand::thread_rng();
         let weights: Vec<f64> = (2..n).map(|_| rng.gen::<f64>()).collect();
         let sum: f64 = weights.iter().sum();
         for (i, w) in weights.iter().enumerate() {
-            wallets[i + 2].locked = GIFT_REST * w / sum;
+            gifts[i + 2] = GIFT_REST * w / sum;
         }
 
-        let total = GIFT_ALICE + GIFT_REST;
-        wallets[0].balance -= total;
-        wallets[0].sent = total;
+        let log = Vec::new();
+        let mut app = App { wallets, log, notify };
 
-        // Log only named wallet gifts
-        let mut log = Vec::new();
-        for i in 1..named.len() {
-            log.push(TxLog {
-                from: "Koi".into(),
-                to: wallets[i].name.clone(),
-                amount: wallets[i].locked,
-                t,
-            });
+        // Send gifts as real transactions (1/3 balance, 2/3 locked)
+        for i in 1..n {
+            let _ = app.send(0, i, gifts[i]);
         }
 
-        App { wallets, log, notify }
+        app
     }
 
     fn settle(&mut self, i: usize) {
