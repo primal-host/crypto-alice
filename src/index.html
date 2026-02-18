@@ -34,6 +34,15 @@ main {
   padding: 1.5rem;
   margin-bottom: 1.5rem;
   text-align: center;
+  position: relative;
+}
+.depletion {
+  position: absolute;
+  top: 1rem;
+  right: 1.25rem;
+  color: #52525b;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
 }
 .koi-balance {
   font-size: 2rem;
@@ -218,6 +227,7 @@ main {
 <main>
   <div class="koi-card">
     <div class="koi-balance" id="koi-bal"></div>
+    <span class="depletion" id="depletion"></span>
   </div>
 
   <div class="section">
@@ -362,6 +372,15 @@ function render() {
   var koiBal = calcKoiBal(t);
   var whole = Math.floor(koiBal);
   document.getElementById('koi-bal').textContent = whole.toLocaleString('en-US') + ' Koi';
+
+  // Depletion estimate
+  var drainPerSec = koiBal - calcKoiBal(t + 1);
+  if (drainPerSec > 0) {
+    var weeks = Math.floor(koiBal / (drainPerSec * 604800));
+    document.getElementById('depletion').textContent = '~' + weeks.toLocaleString('en-US') + ' weeks';
+  } else {
+    document.getElementById('depletion').textContent = '';
+  }
 
   // Effective APR
   var effectiveAPR = state.rate * Math.max(0, koiBal) / state.supply * 100;
