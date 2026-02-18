@@ -399,11 +399,19 @@ async fn main() {
             if from >= MILLIONAIRE_IDX {
                 from += 1; // skip over Millionaire
             }
-            // Pick to excluding Koi (0), Alice (1), and from
-            let mut to = app.rng.gen_range(2..n - 1);
-            if to >= from {
-                to += 1;
-            }
+            // 50% chance target is Millionaire, otherwise random wallet
+            let to = if app.rng.gen_bool(0.5) {
+                MILLIONAIRE_IDX
+            } else {
+                let mut t = app.rng.gen_range(2..n - 2); // exclude Millionaire and from
+                if t >= MILLIONAIRE_IDX.min(from) {
+                    t += 1;
+                }
+                if t >= MILLIONAIRE_IDX.max(from) {
+                    t += 1;
+                }
+                t
+            };
             let pct = app.rng.gen_range(0.0..=0.01);
             let bal = app.wallets[from].balance;
             if bal > 0.0 {
