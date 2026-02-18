@@ -169,7 +169,7 @@ main {
 .log-entry .detail { color: #a1a1aa; }
 .log-entry .detail .amount { color: #e4e4e7; font-weight: 600; }
 .log-entry .detail .arrow { color: #71717a; }
-.log-entry .detail .fee { color: #71717a; font-size: 0.7rem; }
+.log-entry .detail .fee { color: #71717a; font-size: 0.7rem; margin-left: 0.5rem; }
 .log-entry .time { color: #71717a; font-size: 0.7rem; white-space: nowrap; margin-left: 1rem; }
 .status {
   font-size: 0.7rem;
@@ -361,10 +361,7 @@ function render() {
   // Koi banner
   var koiBal = calcKoiBal(t);
   var whole = Math.floor(koiBal);
-  var frac = Math.floor((koiBal - whole) * 1e9);
-  var ws = whole.toLocaleString('en-US');
-  var fs = ('000000000' + frac).slice(-9);
-  document.getElementById('koi-bal').textContent = ws + '.' + fs + ' Koi';
+  document.getElementById('koi-bal').textContent = whole.toLocaleString('en-US') + ' Koi';
 
   // Effective APR
   var effectiveAPR = state.rate * Math.max(0, koiBal) / state.supply * 100;
