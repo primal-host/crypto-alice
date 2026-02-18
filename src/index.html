@@ -307,7 +307,7 @@ function calcAccounts(w, t) {
     locked: w.locked + w.vested,
     vested: totalPending,
     available: 3 * (w.locked - vested) / 4,
-    total: w.balance + interest,
+    total: w.balance + interest + totalPending,
     interest: w.interest + interest,
     sent: w.sent
   };
@@ -350,11 +350,11 @@ function initCards() {
       } else {
         card.innerHTML =
           '<div class="name">' + w.name + '</div>' +
-          '<div class="acct-row"><span class="label">Locked</span><span class="value" id="dep-' + w.name + '"></span></div>' +
+          '<div class="acct-row interest"><span class="label">Interest</span><span class="value" id="int-' + w.name + '"></span></div>' +
           '<div class="acct-row vested"><span class="label">Vested</span><span class="value" id="pnd-' + w.name + '"></span></div>' +
+          '<div class="acct-row"><span class="label">Locked</span><span class="value" id="dep-' + w.name + '"></span></div>' +
           '<div class="acct-row available"><span class="label">Available</span><span class="value" id="imm-' + w.name + '"></span></div>' +
           '<div class="acct-row balance-row"><span class="label">Balance</span><span class="value" id="bal-' + w.name + '"></span></div>' +
-          '<div class="acct-row interest"><span class="label">Interest</span><span class="value" id="int-' + w.name + '"></span></div>' +
           '<div class="acct-row sent"><span class="label">Sent</span><span class="value" id="snt-' + w.name + '"></span></div>';
       }
       c.appendChild(card);
