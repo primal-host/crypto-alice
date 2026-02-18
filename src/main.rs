@@ -15,7 +15,7 @@ use std::{
 };
 use tokio::sync::{broadcast, Mutex};
 
-const RATE: f64 = 1.0 / 3.0; // 33.33% APR
+const RATE: f64 = 10.0 / 27.0; // ~37.04% base, 33.33% effective after 10% emission
 const PRATE: f64 = RATE * 10.0; // vesting rate
 const SPY: f64 = 365.25 * 24.0 * 3600.0; // seconds per year
 const TOTAL_SUPPLY: f64 = 1_000_000_000.0;
@@ -129,7 +129,8 @@ impl App {
         let dt = (t - w.t) / SPY;
 
         let vested = (w.locked * ((PRATE * dt).exp() - 1.0)).min(w.locked);
-        let interest = (w.balance + w.vested + vested) * ((RATE * dt).exp() - 1.0);
+        let erate = RATE * self.wallets[0].balance.max(0.0) / TOTAL_SUPPLY;
+        let interest = (w.balance + w.vested + vested) * ((erate * dt).exp() - 1.0);
 
         self.wallets[i].balance += interest;
         self.wallets[i].vested += vested;

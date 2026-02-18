@@ -282,9 +282,10 @@ function calcAccounts(w, t) {
     return { locked: 0, vested: 0, available: 0, total: w.balance, sent: w.sent };
   }
   var dt = (t - w.t) / state.spy;
+  var erate = state.rate * state.wallets[0].balance / state.supply;
   var vested = Math.min(w.locked, w.locked * (Math.exp(state.prate * dt) - 1));
   var totalPending = w.vested + vested;
-  var interest = (w.balance + totalPending) * (Math.exp(state.rate * dt) - 1);
+  var interest = (w.balance + totalPending) * (Math.exp(erate * dt) - 1);
   return {
     locked: w.locked + w.vested,
     vested: totalPending,
@@ -296,12 +297,13 @@ function calcAccounts(w, t) {
 
 function calcKoiBal(t) {
   var bal = state.wallets[0].balance;
+  var erate = state.rate * bal / state.supply;
   for (var i = 1; i < state.wallets.length; i++) {
     var o = state.wallets[i];
     var dt = (t - o.t) / state.spy;
     var vested = Math.min(o.locked, o.locked * (Math.exp(state.prate * dt) - 1));
     var totalPending = o.vested + vested;
-    bal -= (o.balance + totalPending) * (Math.exp(state.rate * dt) - 1);
+    bal -= (o.balance + totalPending) * (Math.exp(erate * dt) - 1);
   }
   return bal;
 }
@@ -309,11 +311,12 @@ function calcKoiBal(t) {
 function calcRate(w, t) {
   if (w.name === 'Koi') return 0;
   var dt = (t - w.t) / state.spy;
-  var erps = state.rate / state.spy;
+  var erate = state.rate * state.wallets[0].balance / state.supply;
+  var erps = erate / state.spy;
   var prps = state.prate / state.spy;
   var vested = Math.min(w.locked, w.locked * (Math.exp(state.prate * dt) - 1));
   var totalPending = w.vested + vested;
-  var rate = (w.balance + totalPending) * erps * Math.exp(state.rate * dt);
+  var rate = (w.balance + totalPending) * erps * Math.exp(erate * dt);
   if (w.locked * (Math.exp(state.prate * dt) - 1) < w.locked) {
     rate += w.locked * prps * Math.exp(state.prate * dt);
   }
@@ -363,7 +366,7 @@ function render() {
   document.getElementById('koi-bal').textContent = ws + '.' + fs + ' Koi';
 
   // Effective APR
-  var effectiveAPR = state.rate * 100;
+  var effectiveAPR = state.rate * Math.max(0, koiBal) / state.supply * 100;
   document.getElementById('apr-info').textContent = 'APR: ' + effectiveAPR.toFixed(2) + '%';
 
   // All wallets
@@ -454,21 +457,15 @@ function renderHalvings() {
   var K0 = state.k0;
   var S0 = N - K0;
   var R = state.rate;
-  // Constant rate: K(t) = N - S0*e^(Rt), drains at t_end = ln(N/S0)/R
-  var tEnd = Math.log(N / S0) / R;
-  // Halving n: K_n = K0/2^n, t_n = ln((N - K0/2^n) / S0) / R
+  // Logistic: t_n = ln((N*2^n - K0) / S0) / R, APR_n = R * K0/(2^n * N)
   var maxN = Math.floor(Math.log(K0 / 1e-9) / Math.log(2));
-  // Limit to halvings that occur before drain
-  while (maxN > 0 && K0 / Math.pow(2, maxN) < 1e-9) maxN--;
+  var maxT = Math.log((N * Math.pow(2, maxN) - K0) / S0) / R;
   var html = '<table><thead><tr><th class="num">#</th><th style="width:35%"></th><th>Years</th><th>Balance</th><th>APR</th></tr></thead><tbody>';
   for (var n = 1; n <= maxN; n++) {
     var K = K0 / Math.pow(2, n);
-    var rem = N - K;
-    if (rem <= S0) continue; // hasn't happened yet in the model
-    var t = Math.log(rem / S0) / R;
-    if (t > tEnd) break;
-    var apr = R * 100;
-    var pct = (t / tEnd * 100).toFixed(1);
+    var t = Math.log((N * Math.pow(2, n) - K0) / S0) / R;
+    var apr = K / N * R * 100;
+    var pct = (t / maxT * 100).toFixed(1);
     html += '<tr>';
     html += '<td class="num">' + n + '</td>';
     html += '<td><div style="background:linear-gradient(to right,#f59e0b,#f97316);height:0.4rem;width:' + pct + '%;border-radius:2px"></div></td>';
@@ -477,14 +474,6 @@ function renderHalvings() {
     html += '<td class="apr">' + fmtAPR(apr) + '</td>';
     html += '</tr>';
   }
-  // Show drain time
-  html += '<tr style="border-top:1px solid #27272a">';
-  html += '<td class="num" style="color:#f87171">\u2205</td>';
-  html += '<td><div style="background:#f87171;height:0.4rem;width:100%;border-radius:2px"></div></td>';
-  html += '<td>' + tEnd.toFixed(1) + '</td>';
-  html += '<td class="mono">' + fmt(0) + '</td>';
-  html += '<td class="apr">0%</td>';
-  html += '</tr>';
   html += '</tbody></table>';
   document.getElementById('halvings').innerHTML = html;
   document.getElementById('halvings-section').style.display = '';
