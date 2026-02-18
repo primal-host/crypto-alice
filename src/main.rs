@@ -203,24 +203,61 @@ impl App {
         self.wallets[from].balance -= amount;
         self.wallets[from].sent += amount;
 
+        // 0.1% fee on wallet-to-wallet (not involving Koi)
+        let mut send_amount = amount;
+        let fee = if from != 0 && to != 0 {
+            let fee = amount / 1000.0;
+            let mut rem = fee;
+
+            // Source fee: locked first
+            let fl = rem.min(self.wallets[from].locked);
+            self.wallets[from].locked -= fl;
+            rem -= fl;
+
+            // Then vested
+            let fv = rem.min(self.wallets[from].vested);
+            self.wallets[from].vested -= fv;
+            rem -= fv;
+
+            // Then excess balance (already deducted amount)
+            let fb = rem.min(self.wallets[from].balance);
+            self.wallets[from].balance -= fb;
+            rem -= fb;
+
+            // Remainder reduces the transfer amount
+            send_amount -= rem;
+
+            self.wallets[0].balance += fee;
+            fee
+        } else {
+            0.0
+        };
+
         self.settle(to);
         if to == 0 {
-            // Koi receives directly to balance
-            self.wallets[0].balance += amount;
+            self.wallets[0].balance += send_amount;
         } else {
-            self.wallets[to].balance += amount / 3.0;
-            self.wallets[to].locked += 2.0 * amount / 3.0;
+            self.wallets[to].balance += send_amount / 3.0;
+            self.wallets[to].locked += 2.0 * send_amount / 3.0;
         }
 
         let t = now();
         let from_name = self.wallets[from].name.clone();
         let to_name = self.wallets[to].name.clone();
         self.log.push(TxLog {
-            from: from_name,
+            from: from_name.clone(),
             to: to_name,
-            amount,
+            amount: send_amount,
             t,
         });
+        if fee > 0.0 {
+            self.log.push(TxLog {
+                from: from_name,
+                to: "Koi".into(),
+                amount: fee,
+                t,
+            });
+        }
 
         let _ = self.notify.send(());
         Ok(())
