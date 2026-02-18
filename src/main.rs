@@ -38,6 +38,7 @@ fn now() -> f64 {
 #[derive(Clone, Serialize)]
 struct Wallet {
     name: String,
+    contract: bool,
     locked: f64,
     vested: f64,
     balance: f64,
@@ -89,6 +90,7 @@ impl App {
             };
             wallets.push(Wallet {
                 name,
+                contract: i == MILLIONAIRE_IDX,
                 locked: 0.0,
                 vested: 0.0,
                 balance: 0.0,
@@ -99,11 +101,13 @@ impl App {
 
         wallets[0].balance = TOTAL_SUPPLY;
 
-        // Compute gift amounts
+        // Compute gift amounts (skip contracts)
         let mut gifts = vec![0.0; n];
         gifts[1] = GIFT_ALICE;
         let mut rng = rand::thread_rng();
-        let weights: Vec<f64> = (2..n).map(|_| rng.gen::<f64>()).collect();
+        let weights: Vec<f64> = (2..n)
+            .map(|i| if wallets[i].contract { 0.0 } else { rng.gen::<f64>() })
+            .collect();
         let sum: f64 = weights.iter().sum();
         for (i, w) in weights.iter().enumerate() {
             gifts[i + 2] = GIFT_REST * w / sum;
@@ -114,8 +118,11 @@ impl App {
         let rng = StdRng::from_entropy();
         let mut app = App { wallets, log, contributions, rng, notify };
 
-        // Send gifts as real transactions (1/3 balance, 2/3 locked)
+        // Send gifts as real transactions (skip contracts)
         for i in 1..n {
+            if app.wallets[i].contract {
+                continue;
+            }
             let _ = app.send(0, i, gifts[i]);
         }
 
@@ -124,7 +131,7 @@ impl App {
 
     fn settle(&mut self, i: usize) {
         let t = now();
-        if i == 0 {
+        if i == 0 || self.wallets[i].contract {
             return;
         }
 
@@ -242,8 +249,8 @@ impl App {
         }
 
         self.settle(to);
-        if to == 0 {
-            self.wallets[0].balance += send_amount;
+        if to == 0 || self.wallets[to].contract {
+            self.wallets[to].balance += send_amount;
         } else {
             self.wallets[to].balance += send_amount / 3.0;
             self.wallets[to].locked += 2.0 * send_amount / 3.0;
@@ -265,10 +272,7 @@ impl App {
     }
 
     fn check_millionaire(&mut self) {
-        self.settle(MILLIONAIRE_IDX);
-        let bal = self.wallets[MILLIONAIRE_IDX].balance
-            + self.wallets[MILLIONAIRE_IDX].vested;
-        if bal <= MILLIONAIRE_THRESHOLD {
+        if self.wallets[MILLIONAIRE_IDX].balance <= MILLIONAIRE_THRESHOLD {
             return;
         }
         // Build weighted distribution from contributions
@@ -284,10 +288,6 @@ impl App {
         }
         let dist = WeightedIndex::new(weights.iter().map(|&(_, w)| w)).unwrap();
         let winner = weights[dist.sample(&mut self.rng)].0;
-        // Claim vested first so balance covers payout
-        let v = self.wallets[MILLIONAIRE_IDX].vested;
-        self.wallets[MILLIONAIRE_IDX].balance += v;
-        self.wallets[MILLIONAIRE_IDX].vested = 0.0;
         let _ = self.send(MILLIONAIRE_IDX, winner, MILLIONAIRE_PAYOUT);
         // Reset contributions
         for c in self.contributions.iter_mut() {

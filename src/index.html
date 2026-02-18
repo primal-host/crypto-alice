@@ -266,6 +266,7 @@ main {
 <script>
 var state = null;
 var tOff = 0;
+var prevBal = {};
 
 function sNow() { return Date.now() / 1000 + tOff; }
 
@@ -348,14 +349,21 @@ function initCards() {
       var card = document.createElement('div');
       card.className = 'wallet-card';
       card.id = 'card-' + w.name;
-      card.innerHTML =
-        '<div class="name">' + w.name + '</div>' +
-        '<div class="acct-row"><span class="label">Locked</span><span class="value" id="dep-' + w.name + '"></span></div>' +
-        '<div class="acct-row vested"><span class="label">Vested</span><span class="value" id="pnd-' + w.name + '"></span></div>' +
-        '<div class="acct-row available"><span class="label">Available</span><span class="value" id="imm-' + w.name + '"></span></div>' +
-        '<div class="acct-row balance-row"><span class="label">Balance</span><span class="value" id="bal-' + w.name + '"></span></div>' +
-        '<div class="rate" id="rate-' + w.name + '"></div>' +
-        '<div class="acct-row sent"><span class="label">Sent</span><span class="value" id="snt-' + w.name + '"></span></div>';
+      if (w.contract) {
+        card.innerHTML =
+          '<div class="name">' + w.name + ' <span style="color:#f59e0b;font-size:0.65rem">CONTRACT</span></div>' +
+          '<div class="acct-row balance-row"><span class="label">Balance</span><span class="value" id="bal-' + w.name + '"></span></div>' +
+          '<div class="rate" id="rate-' + w.name + '"></div>';
+      } else {
+        card.innerHTML =
+          '<div class="name">' + w.name + '</div>' +
+          '<div class="acct-row"><span class="label">Locked</span><span class="value" id="dep-' + w.name + '"></span></div>' +
+          '<div class="acct-row vested"><span class="label">Vested</span><span class="value" id="pnd-' + w.name + '"></span></div>' +
+          '<div class="acct-row available"><span class="label">Available</span><span class="value" id="imm-' + w.name + '"></span></div>' +
+          '<div class="acct-row balance-row"><span class="label">Balance</span><span class="value" id="bal-' + w.name + '"></span></div>' +
+          '<div class="rate" id="rate-' + w.name + '"></div>' +
+          '<div class="acct-row sent"><span class="label">Sent</span><span class="value" id="snt-' + w.name + '"></span></div>';
+      }
       c.appendChild(card);
     }
     sf.add(new Option(w.name, w.name));
@@ -393,6 +401,13 @@ function render() {
     if (!balEl) continue;
     if (w.name === 'Koi') {
       balEl.textContent = fmt(koiBal);
+    } else if (w.contract) {
+      balEl.textContent = fmt(w.balance);
+      var rateEl = document.getElementById('rate-' + w.name);
+      if (prevBal[w.name] !== undefined) {
+        var r = prevBal[w.name];
+        rateEl.textContent = (r >= 0 ? '+' : '') + fmt(r) + '/sec';
+      }
     } else {
       var a = calcAccounts(w, t);
       document.getElementById('dep-' + w.name).textContent = fmt(a.locked);
@@ -510,9 +525,22 @@ function connect() {
   };
 
   ws.onmessage = function(e) {
+    var prev = state;
     state = JSON.parse(e.data);
     tOff = state.t - Date.now() / 1000;
     if (!cardsInit) { initCards(); renderHalvings(); cardsInit = true; }
+    // Track contract balance deltas for deposit rate
+    if (prev) {
+      var dt = state.t - prev.t;
+      if (dt > 0) {
+        for (var i = 0; i < state.wallets.length; i++) {
+          var w = state.wallets[i];
+          if (w.contract && prev.wallets[i]) {
+            prevBal[w.name] = (w.balance - prev.wallets[i].balance) / dt;
+          }
+        }
+      }
+    }
     renderLog();
   };
 
