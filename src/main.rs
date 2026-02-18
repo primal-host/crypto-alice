@@ -216,7 +216,8 @@ impl App {
             // Koi receives directly to balance
             self.wallets[0].balance += amount;
         } else {
-            self.wallets[to].locked += amount;
+            self.wallets[to].balance += amount / 3.0;
+            self.wallets[to].locked += 2.0 * amount / 3.0;
         }
 
         let t = now();
