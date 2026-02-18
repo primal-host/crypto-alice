@@ -79,7 +79,7 @@ impl App {
     fn new(notify: broadcast::Sender<()>) -> Self {
         let t = now();
         let named = ["Koi", "Alice", "Bob", "Carol", "Dan", "Eve", "Millionaire"];
-        let n = 100_000;
+        let n = 100;
         let mut wallets = Vec::with_capacity(n);
 
         for i in 0..n {
