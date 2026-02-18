@@ -296,7 +296,7 @@ function fmt(n) {
 
 function calcAccounts(w, t) {
   if (w.name === 'Koi') {
-    return { locked: 0, vested: 0, available: 0, total: w.balance, sent: w.sent };
+    return { locked: 0, vested: 0, available: 0, total: w.balance, interest: 0, sent: w.sent };
   }
   var dt = (t - w.t) / state.spy;
   var erate = state.rate * state.wallets[0].balance / state.supply;
@@ -308,6 +308,7 @@ function calcAccounts(w, t) {
     vested: totalPending,
     available: 3 * (w.locked - vested) / 4,
     total: w.balance + interest,
+    interest: w.interest + interest,
     sent: w.sent
   };
 }
@@ -366,6 +367,7 @@ function initCards() {
           '<div class="acct-row vested"><span class="label">Vested</span><span class="value" id="pnd-' + w.name + '"></span></div>' +
           '<div class="acct-row available"><span class="label">Available</span><span class="value" id="imm-' + w.name + '"></span></div>' +
           '<div class="acct-row balance-row"><span class="label">Balance</span><span class="value" id="bal-' + w.name + '"></span></div>' +
+          '<div class="acct-row interest"><span class="label">Interest</span><span class="value" id="int-' + w.name + '"></span></div>' +
           '<div class="rate" id="rate-' + w.name + '"></div>' +
           '<div class="acct-row sent"><span class="label">Sent</span><span class="value" id="snt-' + w.name + '"></span></div>';
       }
@@ -427,6 +429,7 @@ function render() {
       document.getElementById('pnd-' + w.name).textContent = fmt(a.vested);
       document.getElementById('imm-' + w.name).textContent = fmt(a.available);
       balEl.textContent = fmt(a.total);
+      document.getElementById('int-' + w.name).textContent = fmt(a.interest);
       document.getElementById('rate-' + w.name).textContent = '+' + fmt(calcRate(w, t)) + '/sec';
       document.getElementById('snt-' + w.name).textContent = fmt(a.sent);
     }

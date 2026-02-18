@@ -42,6 +42,7 @@ struct Wallet {
     locked: f64,
     vested: f64,
     balance: f64,
+    interest: f64,
     sent: f64,
     t: f64,
 }
@@ -94,6 +95,7 @@ impl App {
                 locked: 0.0,
                 vested: 0.0,
                 balance: 0.0,
+                interest: 0.0,
                 sent: 0.0,
                 t,
             });
@@ -143,6 +145,7 @@ impl App {
         let interest = (w.balance + w.vested + vested) * ((erate * dt).exp() - 1.0);
 
         self.wallets[i].balance += interest;
+        self.wallets[i].interest += interest;
         self.wallets[i].vested += vested;
         self.wallets[i].locked -= vested;
         self.wallets[i].t = t;
@@ -168,10 +171,11 @@ impl App {
             }
         }
 
-        // Move all vested to balance (free)
+        // Move all vested to balance (free), reset interest counter
         let claimed = self.wallets[i].vested;
         self.wallets[i].balance += claimed;
         self.wallets[i].vested = 0.0;
+        self.wallets[i].interest = 0.0;
 
         // Early settlement: wallet gets amount, fee goes to Koi
         if amount > 0.0 {
