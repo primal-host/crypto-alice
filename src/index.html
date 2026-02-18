@@ -73,7 +73,6 @@ main {
 .acct-row.pending .value { color: #f59e0b; }
 .acct-row.available .value { color: #fb923c; }
 .acct-row.interest .value { color: #4ade80; }
-.acct-row.settled .value { color: #60a5fa; }
 .acct-row.sent .value { color: #f87171; }
 .acct-row.balance-row {
   font-weight: 700;
@@ -178,13 +177,40 @@ main {
 }
 .status.ok { background: #14532d; color: #4ade80; }
 .status.err { background: #451a03; color: #fb923c; }
+.halvings-table {
+  max-height: 20rem;
+  overflow-y: auto;
+}
+.halvings-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+.halvings-table th {
+  text-align: left;
+  color: #71717a;
+  font-weight: 600;
+  padding: 0.25rem 0.5rem;
+  border-bottom: 1px solid #27272a;
+  position: sticky;
+  top: 0;
+  background: #16181d;
+}
+.halvings-table td {
+  padding: 0.15rem 0.5rem;
+  border-bottom: 1px solid #1e1e24;
+}
+.halvings-table .num { color: #71717a; }
+.halvings-table .mono { font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; }
+.halvings-table .apr { color: #4ade80; }
 </style>
 </head>
 <body>
 <header>
   <h1>Koi</h1>
   <div>
-    <span class="info">APR: ln(4/3) &#8776; 28.77%</span>
+    <span class="info" id="apr-info">APR: --</span>
     <span id="ws-status" class="status err" style="margin-left:0.75rem">disconnected</span>
   </div>
 </header>
@@ -219,6 +245,11 @@ main {
     <h2>Transaction Log</h2>
     <div class="log-entries" id="log"></div>
   </div>
+
+  <div class="section" id="halvings-section" style="display:none">
+    <h2>Halving Schedule</h2>
+    <div class="halvings-table" id="halvings"></div>
+  </div>
 </main>
 
 <script>
@@ -234,9 +265,9 @@ function fmt(n) {
   if (a >= 1e9)       { v = a / 1e9;  u = 'gKoi'; }
   else if (a >= 1e6)  { v = a / 1e6;  u = 'eKoi'; }
   else if (a >= 1e3)  { v = a / 1e3;  u = 'kKoi'; }
-  else if (a >= 1e-3) { v = a;         u = '\u00a0Koi'; }
-  else if (a >= 1e-6) { v = a * 1e3;  u = 'mKoi'; }
-  else if (a >= 1e-9) { v = a * 1e6;  u = 'uKoi'; }
+  else if (a >= 1)    { v = a;         u = '\u00a0Koi'; }
+  else if (a >= 1e-3) { v = a * 1e3;  u = 'mKoi'; }
+  else if (a >= 1e-6) { v = a * 1e6;  u = 'uKoi'; }
   else                { v = a * 1e9;  u = 'nKoi'; }
   var d = v >= 100 ? 1 : v >= 10 ? 2 : 3;
   var p = Math.pow(10, d);
@@ -248,32 +279,33 @@ function fmt(n) {
 
 function calcAccounts(w, t) {
   if (w.name === 'Koi') {
-    return { deposits: 0, pending: 0, available: 0, interest: 0, total: w.balance, sent: w.sent };
+    return { deposits: 0, pending: 0, available: 0, total: w.balance, sent: w.sent };
   }
   var dt = (t - w.t) / state.spy;
-  var pending = Math.min(w.deposits, w.deposits * (Math.exp(state.prate * dt) - 1));
-  var settledInt = w.balance * (Math.exp(state.rate * dt) - 1);
-  var pendingInt = pending * (Math.exp(state.rate * dt) - 1);
+  var frac = state.wallets[0].balance / state.supply;
+  var erate = state.rate * frac * frac;
+  var vested = Math.min(w.deposits, w.deposits * (Math.exp(state.prate * dt) - 1));
+  var totalPending = w.pending + vested;
+  var interest = (w.balance + totalPending) * (Math.exp(erate * dt) - 1);
   return {
-    deposits: w.deposits,
-    settled: w.balance,
-    settledInt: settledInt,
-    pending: pending,
-    pendingInt: pendingInt,
-    available: 3 * (w.deposits - pending) / 4,
-    total: w.balance + settledInt + pending + pendingInt,
+    deposits: w.deposits + w.pending,
+    pending: totalPending,
+    available: 3 * (w.deposits - vested) / 4,
+    total: w.balance + interest,
     sent: w.sent
   };
 }
 
 function calcKoiBal(t) {
   var bal = state.wallets[0].balance;
+  var frac = bal / state.supply;
+  var erate = state.rate * frac * frac;
   for (var i = 1; i < state.wallets.length; i++) {
     var o = state.wallets[i];
     var dt = (t - o.t) / state.spy;
-    var pnd = Math.min(o.deposits, o.deposits * (Math.exp(state.prate * dt) - 1));
-    bal -= pnd;
-    bal -= (o.balance + pnd) * (Math.exp(state.rate * dt) - 1);
+    var vested = Math.min(o.deposits, o.deposits * (Math.exp(state.prate * dt) - 1));
+    var totalPending = o.pending + vested;
+    bal -= (o.balance + totalPending) * (Math.exp(erate * dt) - 1);
   }
   return bal;
 }
@@ -281,10 +313,13 @@ function calcKoiBal(t) {
 function calcRate(w, t) {
   if (w.name === 'Koi') return 0;
   var dt = (t - w.t) / state.spy;
-  var irps = state.rate / state.spy;
+  var frac = state.wallets[0].balance / state.supply;
+  var erate = state.rate * frac * frac;
+  var erps = erate / state.spy;
   var prps = state.prate / state.spy;
-  var pending = Math.min(w.deposits, w.deposits * (Math.exp(state.prate * dt) - 1));
-  var rate = (w.balance + pending) * irps * Math.exp(state.rate * dt);
+  var vested = Math.min(w.deposits, w.deposits * (Math.exp(state.prate * dt) - 1));
+  var totalPending = w.pending + vested;
+  var rate = (w.balance + totalPending) * erps * Math.exp(erate * dt);
   if (w.deposits * (Math.exp(state.prate * dt) - 1) < w.deposits) {
     rate += w.deposits * prps * Math.exp(state.prate * dt);
   }
@@ -298,7 +333,7 @@ function initCards() {
   var st = document.getElementById('sel-to');
   sf.innerHTML = '';
   st.innerHTML = '';
-  for (var i = 0; i < state.wallets.length; i++) {
+  for (var i = 0; i < state.wallets.length && i < 6; i++) {
     var w = state.wallets[i];
     var card = document.createElement('div');
     card.className = 'wallet-card';
@@ -312,10 +347,7 @@ function initCards() {
         '<div class="name">' + w.name + '</div>' +
         '<div class="acct-row"><span class="label">Deposits</span><span class="value" id="dep-' + w.name + '"></span></div>' +
         '<div class="acct-row pending"><span class="label">Pending</span><span class="value" id="pnd-' + w.name + '"></span></div>' +
-        '<div class="acct-row interest"><span class="label">Pending Interest</span><span class="value" id="pint-' + w.name + '"></span></div>' +
         '<div class="acct-row available"><span class="label">Available</span><span class="value" id="imm-' + w.name + '"></span></div>' +
-        '<div class="acct-row settled"><span class="label">Settled</span><span class="value" id="stl-' + w.name + '"></span></div>' +
-        '<div class="acct-row interest"><span class="label">Settled Interest</span><span class="value" id="sint-' + w.name + '"></span></div>' +
         '<div class="acct-row balance-row"><span class="label">Balance</span><span class="value" id="bal-' + w.name + '"></span></div>' +
         '<div class="rate" id="rate-' + w.name + '"></div>' +
         '<div class="acct-row sent"><span class="label">Sent</span><span class="value" id="snt-' + w.name + '"></span></div>';
@@ -339,24 +371,25 @@ function render() {
   var fs = ('000000000' + frac).slice(-9);
   document.getElementById('koi-bal').textContent = ws + '.' + fs + ' Koi';
 
+  // Effective APR
+  var koiFrac = Math.max(0, koiBal) / state.supply;
+  var effectiveAPR = state.rate * koiFrac * koiFrac * 100;
+  document.getElementById('apr-info').textContent = 'APR: ' + effectiveAPR.toFixed(2) + '%';
+
   // All wallets
   for (var i = 0; i < state.wallets.length; i++) {
     var w = state.wallets[i];
-    var a = calcAccounts(w, t);
-    var rate = calcRate(w, t);
     var balEl = document.getElementById('bal-' + w.name);
     if (!balEl) continue;
-    if (w.name !== 'Koi') {
+    if (w.name === 'Koi') {
+      balEl.textContent = fmt(koiBal);
+    } else {
+      var a = calcAccounts(w, t);
       document.getElementById('dep-' + w.name).textContent = fmt(a.deposits);
       document.getElementById('pnd-' + w.name).textContent = fmt(a.pending);
-      document.getElementById('pint-' + w.name).textContent = fmt(a.pendingInt);
       document.getElementById('imm-' + w.name).textContent = fmt(a.available);
-      document.getElementById('stl-' + w.name).textContent = fmt(a.settled);
-      document.getElementById('sint-' + w.name).textContent = fmt(a.settledInt);
-    }
-    balEl.textContent = fmt(a.total);
-    if (w.name !== 'Koi') {
-      document.getElementById('rate-' + w.name).textContent = '+' + fmt(rate) + '/sec';
+      balEl.textContent = fmt(a.total);
+      document.getElementById('rate-' + w.name).textContent = '+' + fmt(calcRate(w, t)) + '/sec';
       document.getElementById('snt-' + w.name).textContent = fmt(a.sent);
     }
   }
@@ -394,7 +427,12 @@ document.getElementById('btn-send').addEventListener('click', async function() {
   var errEl = document.getElementById('error');
   errEl.textContent = '';
 
-  if (!amount || amount <= 0) { errEl.textContent = 'Enter a valid amount'; return; }
+  if (from === to) {
+    amount = amount || 0;
+    if (amount < 0) { errEl.textContent = 'Enter a valid amount'; return; }
+  } else {
+    if (!amount || amount <= 0) { errEl.textContent = 'Enter a valid amount'; return; }
+  }
 
   this.disabled = true;
   try {
@@ -415,6 +453,46 @@ document.getElementById('btn-send').addEventListener('click', async function() {
   this.disabled = false;
 });
 
+function fmtAPR(v) {
+  if (v >= 10) return v.toFixed(1) + '%';
+  if (v >= 0.01) return v.toFixed(2) + '%';
+  return v.toExponential(1) + '%';
+}
+
+function halvingTime(u0, u1, R) {
+  // Analytical solution for du/dt = -R*u^2*(1-u)
+  // t = [1/u1 - 1/u0 + ln(u0*(1-u1)/(u1*(1-u0)))] / R
+  return (1/u1 - 1/u0 + Math.log(u0 * (1 - u1) / (u1 * (1 - u0)))) / R;
+}
+
+function renderHalvings() {
+  var N = state.supply;
+  var K0 = state.k0;
+  var u0 = K0 / N;
+  var R = state.rate;
+  var maxN = Math.floor(Math.log(K0 / 1e-9) / Math.log(2));
+  var uLast = u0 / Math.pow(2, maxN);
+  var maxT = halvingTime(u0, uLast, R);
+  var html = '<table><thead><tr><th class="num">#</th><th style="width:35%"></th><th>Years</th><th>Balance</th><th>APR</th></tr></thead><tbody>';
+  for (var n = 1; n <= maxN; n++) {
+    var un = u0 / Math.pow(2, n);
+    var K = K0 / Math.pow(2, n);
+    var t = halvingTime(u0, un, R);
+    var apr = R * un * un * 100;
+    var pct = (t / maxT * 100).toFixed(1);
+    html += '<tr>';
+    html += '<td class="num">' + n + '</td>';
+    html += '<td><div style="background:linear-gradient(to right,#f59e0b,#f97316);height:0.4rem;width:' + pct + '%;border-radius:2px"></div></td>';
+    html += '<td>' + t.toFixed(1) + '</td>';
+    html += '<td class="mono">' + fmt(K) + '</td>';
+    html += '<td class="apr">' + fmtAPR(apr) + '</td>';
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+  document.getElementById('halvings').innerHTML = html;
+  document.getElementById('halvings-section').style.display = '';
+}
+
 var cardsInit = false;
 
 function connect() {
@@ -430,7 +508,7 @@ function connect() {
   ws.onmessage = function(e) {
     state = JSON.parse(e.data);
     tOff = state.t - Date.now() / 1000;
-    if (!cardsInit) { initCards(); cardsInit = true; }
+    if (!cardsInit) { initCards(); renderHalvings(); cardsInit = true; }
     renderLog();
   };
 

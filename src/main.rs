@@ -14,11 +14,12 @@ use std::{
 };
 use tokio::sync::{broadcast, Mutex};
 
-const RATE: f64 = 0.287_682_072_449_862; // ln(4/3)
+const RATE: f64 = 1.0 / 3.0; // 33.33% APR
 const PRATE: f64 = RATE * 10.0; // pending rate
 const SPY: f64 = 365.25 * 24.0 * 3600.0; // seconds per year
 const TOTAL_SUPPLY: f64 = 1_000_000_000.0;
-const GIFT: f64 = 2_000_000.0;
+const GIFT_ALICE: f64 = 10_000_000.0; // 1%
+const GIFT_REST: f64 = 10_000_000.0;  // 1% divided among remaining 997
 
 fn now() -> f64 {
     SystemTime::now()
@@ -31,6 +32,7 @@ fn now() -> f64 {
 struct Wallet {
     name: String,
     deposits: f64,
+    pending: f64,
     balance: f64,
     sent: f64,
     t: f64,
@@ -51,6 +53,8 @@ struct Snapshot {
     rate: f64,
     prate: f64,
     spy: f64,
+    supply: f64,
+    k0: f64,
     t: f64,
 }
 
@@ -63,24 +67,48 @@ struct App {
 impl App {
     fn new(notify: broadcast::Sender<()>) -> Self {
         let t = now();
-        let mut wallets = vec![
-            Wallet { name: "Koi".into(), deposits: 0.0, balance: TOTAL_SUPPLY, sent: 0.0, t },
-            Wallet { name: "Alice".into(), deposits: 0.0, balance: 0.0, sent: 0.0, t },
-            Wallet { name: "Bob".into(), deposits: 0.0, balance: 0.0, sent: 0.0, t },
-            Wallet { name: "Carol".into(), deposits: 0.0, balance: 0.0, sent: 0.0, t },
-            Wallet { name: "Dan".into(), deposits: 0.0, balance: 0.0, sent: 0.0, t },
-            Wallet { name: "Eve".into(), deposits: 0.0, balance: 0.0, sent: 0.0, t },
-        ];
+        let named = ["Koi", "Alice", "Bob", "Carol", "Dan", "Eve"];
+        let n = 999;
+        let mut wallets = Vec::with_capacity(n);
 
-        wallets[0].balance -= GIFT * 5.0;
-        wallets[0].sent = GIFT * 5.0;
+        for i in 0..n {
+            let name: String = if i < named.len() {
+                named[i].into()
+            } else {
+                format!("W{:03}", i)
+            };
+            wallets.push(Wallet {
+                name,
+                deposits: 0.0,
+                pending: 0.0,
+                balance: 0.0,
+                sent: 0.0,
+                t,
+            });
+        }
+
+        wallets[0].balance = TOTAL_SUPPLY;
+
+        // Alice gets 1%
+        wallets[1].deposits = GIFT_ALICE;
+
+        // Remaining 997 wallets split 1%
+        let per_other = GIFT_REST / (n - 2) as f64;
+        for i in 2..n {
+            wallets[i].deposits = per_other;
+        }
+
+        let total = GIFT_ALICE + GIFT_REST;
+        wallets[0].balance -= total;
+        wallets[0].sent = total;
+
+        // Log only named wallet gifts
         let mut log = Vec::new();
-        for i in 1..6 {
-            wallets[i].deposits = GIFT;
+        for i in 1..named.len() {
             log.push(TxLog {
                 from: "Koi".into(),
                 to: wallets[i].name.clone(),
-                amount: GIFT,
+                amount: wallets[i].deposits,
                 t,
             });
         }
@@ -97,40 +125,43 @@ impl App {
         let w = &self.wallets[i];
         let dt = (t - w.t) / SPY;
 
-        let pending = (w.deposits * ((PRATE * dt).exp() - 1.0)).min(w.deposits);
-        let interest = (w.balance + pending) * ((RATE * dt).exp() - 1.0);
+        let vested = (w.deposits * ((PRATE * dt).exp() - 1.0)).min(w.deposits);
+        let frac = self.wallets[0].balance.max(0.0) / TOTAL_SUPPLY;
+        let erate = RATE * frac * frac;
+        let interest = (w.balance + w.pending + vested) * ((erate * dt).exp() - 1.0);
 
-        self.wallets[i].balance += pending + interest;
-        self.wallets[i].deposits -= pending;
+        self.wallets[i].balance += interest;
+        self.wallets[i].pending += vested;
+        self.wallets[i].deposits -= vested;
         self.wallets[i].t = t;
 
-        // Interest funded by Koi
-        self.wallets[0].balance -= pending + interest;
+        // Only interest funded by Koi
+        self.wallets[0].balance -= interest;
     }
 
     fn early_settle(&mut self, i: usize, amount: f64) -> Result<(), String> {
         if i == 0 {
             return Err("Koi cannot settle".into());
         }
-        let t = now();
-        let w = &self.wallets[i];
-        let dt = (t - w.t) / SPY;
-
-        let pending = (w.deposits * ((PRATE * dt).exp() - 1.0)).min(w.deposits);
-        let interest = (w.balance + pending) * ((RATE * dt).exp() - 1.0);
-        let available = 3.0 * (w.deposits - pending) / 4.0;
-
-        if amount > available {
-            return Err("Exceeds available".into());
+        if amount < 0.0 {
+            return Err("Amount must be non-negative".into());
         }
 
-        // Always settle pending + interest (free)
-        self.wallets[i].balance += pending + interest;
-        self.wallets[i].deposits -= pending;
-        self.wallets[i].t = t;
-        self.wallets[0].balance -= pending + interest;
+        self.settle(i);
 
-        // Early settlement: wallet gets amount, fee goes to Koi deposits
+        if amount > 0.0 {
+            let available = 3.0 * self.wallets[i].deposits / 4.0;
+            if amount > available {
+                return Err("Exceeds available".into());
+            }
+        }
+
+        // Move all vested pending to balance (free)
+        let settled_pending = self.wallets[i].pending;
+        self.wallets[i].balance += settled_pending;
+        self.wallets[i].pending = 0.0;
+
+        // Early settlement: wallet gets amount, fee goes to Koi
         if amount > 0.0 {
             let fee = amount / 3.0;
             self.wallets[i].balance += amount;
@@ -138,13 +169,17 @@ impl App {
             self.wallets[0].balance += fee;
         }
 
+        let t = now();
         let name = self.wallets[i].name.clone();
-        self.log.push(TxLog {
-            from: name.clone(),
-            to: name.clone(),
-            amount,
-            t,
-        });
+        let total = settled_pending + amount;
+        if total > 0.0 {
+            self.log.push(TxLog {
+                from: name.clone(),
+                to: name.clone(),
+                amount: total,
+                t,
+            });
+        }
         if amount > 0.0 {
             self.log.push(TxLog {
                 from: name,
@@ -159,12 +194,14 @@ impl App {
     }
 
     fn send(&mut self, from: usize, to: usize, amount: f64) -> Result<(), String> {
-        if amount <= 0.0 {
-            return Err("Amount must be positive".into());
-        }
         if from == to {
             return self.early_settle(from, amount);
         }
+        if amount <= 0.0 {
+            return Err("Amount must be positive".into());
+        }
+
+        self.settle(from);
 
         if self.wallets[from].balance < amount {
             return Err("Insufficient balance".into());
@@ -201,6 +238,8 @@ impl App {
             rate: RATE,
             prate: PRATE,
             spy: SPY,
+            supply: TOTAL_SUPPLY,
+            k0: TOTAL_SUPPLY - GIFT_ALICE - GIFT_REST,
             t: now(),
         }
     }
