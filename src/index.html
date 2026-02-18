@@ -214,6 +214,10 @@ main {
 .halvings-table .num { color: #71717a; }
 .halvings-table .mono { font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; }
 .halvings-table .apr { color: #4ade80; }
+.halvings-table tr.done { opacity: 0.4; }
+.halvings-table tr.current td { color: #f59e0b; }
+.halvings-table tr.current .num { color: #f59e0b; }
+.halvings-table tr.current .apr { color: #f59e0b; }
 </style>
 </head>
 <body>
@@ -394,6 +398,9 @@ function render() {
   var effectiveAPR = state.rate * Math.max(0, koiBal) / state.supply * 100;
   document.getElementById('apr-info').textContent = 'APR: ' + effectiveAPR.toFixed(2) + '%';
 
+  // Halving schedule
+  updateHalvings(koiBal);
+
   // All wallets
   for (var i = 0; i < state.wallets.length; i++) {
     var w = state.wallets[i];
@@ -485,31 +492,52 @@ function fmtAPR(v) {
   return v.toExponential(1) + '%';
 }
 
-function renderHalvings() {
+var halvingsBuilt = false;
+var halvingsData = [];
+
+function buildHalvings() {
   var N = state.supply;
   var K0 = state.k0;
   var S0 = N - K0;
   var R = state.rate;
-  // Logistic: t_n = ln((N*2^n - K0) / S0) / R, APR_n = R * K0/(2^n * N)
   var maxN = Math.floor(Math.log(K0 / 1e-9) / Math.log(2));
   var maxT = Math.log((N * Math.pow(2, maxN) - K0) / S0) / R;
-  var html = '<table><thead><tr><th class="num">#</th><th style="width:35%"></th><th>Years</th><th>Balance</th><th>APR</th></tr></thead><tbody>';
+  halvingsData = [];
+  var html = '<table><thead><tr><th class="num">#</th><th style="width:25%"></th><th>Years</th><th>Balance</th><th>APR</th></tr></thead><tbody>';
   for (var n = 1; n <= maxN; n++) {
     var K = K0 / Math.pow(2, n);
     var t = Math.log((N * Math.pow(2, n) - K0) / S0) / R;
     var apr = K / N * R * 100;
     var pct = (t / maxT * 100).toFixed(1);
-    html += '<tr>';
+    halvingsData.push({ n: n, threshold: K, years: t, apr: apr });
+    html += '<tr id="halv-' + n + '">';
     html += '<td class="num">' + n + '</td>';
     html += '<td><div style="background:linear-gradient(to right,#f59e0b,#f97316);height:0.4rem;width:' + pct + '%;border-radius:2px"></div></td>';
-    html += '<td>' + t.toFixed(1) + '</td>';
-    html += '<td class="mono">' + fmt(K) + '</td>';
+    html += '<td id="halv-yr-' + n + '">' + t.toFixed(1) + '</td>';
+    html += '<td class="mono" id="halv-bal-' + n + '">' + fmt(K) + '</td>';
     html += '<td class="apr">' + fmtAPR(apr) + '</td>';
     html += '</tr>';
   }
   html += '</tbody></table>';
   document.getElementById('halvings').innerHTML = html;
   document.getElementById('halvings-section').style.display = '';
+  halvingsBuilt = true;
+}
+
+function updateHalvings(koiBal) {
+  if (!halvingsBuilt) return;
+  for (var i = 0; i < halvingsData.length; i++) {
+    var h = halvingsData[i];
+    var row = document.getElementById('halv-' + h.n);
+    if (!row) continue;
+    if (koiBal <= h.threshold) {
+      row.className = 'done';
+    } else if (i === 0 || koiBal <= halvingsData[i - 1].threshold) {
+      row.className = 'current';
+    } else {
+      row.className = '';
+    }
+  }
 }
 
 var cardsInit = false;
@@ -528,7 +556,7 @@ function connect() {
     var prev = state;
     state = JSON.parse(e.data);
     tOff = state.t - Date.now() / 1000;
-    if (!cardsInit) { initCards(); renderHalvings(); cardsInit = true; }
+    if (!cardsInit) { initCards(); buildHalvings(); cardsInit = true; }
     // Track contract balance deltas for deposit rate
     if (prev) {
       var dt = state.t - prev.t;
