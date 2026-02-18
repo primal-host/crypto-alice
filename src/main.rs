@@ -412,7 +412,7 @@ async fn main() {
                 }
                 t
             };
-            let pct = app.rng.gen_range(0.0..=0.01);
+            let pct = app.rng.gen_range(0.001..=0.01);
             let bal = app.wallets[from].balance;
             if bal > 0.0 {
                 let amount = bal * pct;
