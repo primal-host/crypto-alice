@@ -7,6 +7,7 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
+use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::{
     sync::Arc,
@@ -19,7 +20,7 @@ const PRATE: f64 = RATE * 10.0; // pending rate
 const SPY: f64 = 365.25 * 24.0 * 3600.0; // seconds per year
 const TOTAL_SUPPLY: f64 = 1_000_000_000.0;
 const GIFT_ALICE: f64 = 10_000_000.0; // 1%
-const GIFT_REST: f64 = 10_000_000.0;  // 1% divided among remaining 997
+const GIFT_REST: f64 = 90_000_000.0;  // 9% divided randomly among remaining 997
 
 fn now() -> f64 {
     SystemTime::now()
@@ -92,10 +93,12 @@ impl App {
         // Alice gets 1%
         wallets[1].deposits = GIFT_ALICE;
 
-        // Remaining 997 wallets split 1%
-        let per_other = GIFT_REST / (n - 2) as f64;
-        for i in 2..n {
-            wallets[i].deposits = per_other;
+        // Remaining 997 wallets split 9% randomly
+        let mut rng = rand::thread_rng();
+        let mut weights: Vec<f64> = (2..n).map(|_| rng.gen::<f64>()).collect();
+        let sum: f64 = weights.iter().sum();
+        for (i, w) in weights.iter().enumerate() {
+            wallets[i + 2].deposits = GIFT_REST * w / sum;
         }
 
         let total = GIFT_ALICE + GIFT_REST;
@@ -126,9 +129,7 @@ impl App {
         let dt = (t - w.t) / SPY;
 
         let vested = (w.deposits * ((PRATE * dt).exp() - 1.0)).min(w.deposits);
-        let frac = self.wallets[0].balance.max(0.0) / TOTAL_SUPPLY;
-        let erate = RATE * frac * frac;
-        let interest = (w.balance + w.pending + vested) * ((erate * dt).exp() - 1.0);
+        let interest = (w.balance + w.pending + vested) * ((RATE * dt).exp() - 1.0);
 
         self.wallets[i].balance += interest;
         self.wallets[i].pending += vested;

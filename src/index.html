@@ -282,11 +282,9 @@ function calcAccounts(w, t) {
     return { deposits: 0, pending: 0, available: 0, total: w.balance, sent: w.sent };
   }
   var dt = (t - w.t) / state.spy;
-  var frac = state.wallets[0].balance / state.supply;
-  var erate = state.rate * frac * frac;
   var vested = Math.min(w.deposits, w.deposits * (Math.exp(state.prate * dt) - 1));
   var totalPending = w.pending + vested;
-  var interest = (w.balance + totalPending) * (Math.exp(erate * dt) - 1);
+  var interest = (w.balance + totalPending) * (Math.exp(state.rate * dt) - 1);
   return {
     deposits: w.deposits + w.pending,
     pending: totalPending,
@@ -298,14 +296,12 @@ function calcAccounts(w, t) {
 
 function calcKoiBal(t) {
   var bal = state.wallets[0].balance;
-  var frac = bal / state.supply;
-  var erate = state.rate * frac * frac;
   for (var i = 1; i < state.wallets.length; i++) {
     var o = state.wallets[i];
     var dt = (t - o.t) / state.spy;
     var vested = Math.min(o.deposits, o.deposits * (Math.exp(state.prate * dt) - 1));
     var totalPending = o.pending + vested;
-    bal -= (o.balance + totalPending) * (Math.exp(erate * dt) - 1);
+    bal -= (o.balance + totalPending) * (Math.exp(state.rate * dt) - 1);
   }
   return bal;
 }
@@ -313,13 +309,11 @@ function calcKoiBal(t) {
 function calcRate(w, t) {
   if (w.name === 'Koi') return 0;
   var dt = (t - w.t) / state.spy;
-  var frac = state.wallets[0].balance / state.supply;
-  var erate = state.rate * frac * frac;
-  var erps = erate / state.spy;
+  var erps = state.rate / state.spy;
   var prps = state.prate / state.spy;
   var vested = Math.min(w.deposits, w.deposits * (Math.exp(state.prate * dt) - 1));
   var totalPending = w.pending + vested;
-  var rate = (w.balance + totalPending) * erps * Math.exp(erate * dt);
+  var rate = (w.balance + totalPending) * erps * Math.exp(state.rate * dt);
   if (w.deposits * (Math.exp(state.prate * dt) - 1) < w.deposits) {
     rate += w.deposits * prps * Math.exp(state.prate * dt);
   }
@@ -372,8 +366,7 @@ function render() {
   document.getElementById('koi-bal').textContent = ws + '.' + fs + ' Koi';
 
   // Effective APR
-  var koiFrac = Math.max(0, koiBal) / state.supply;
-  var effectiveAPR = state.rate * koiFrac * koiFrac * 100;
+  var effectiveAPR = state.rate * 100;
   document.getElementById('apr-info').textContent = 'APR: ' + effectiveAPR.toFixed(2) + '%';
 
   // All wallets
@@ -459,27 +452,26 @@ function fmtAPR(v) {
   return v.toExponential(1) + '%';
 }
 
-function halvingTime(u0, u1, R) {
-  // Analytical solution for du/dt = -R*u^2*(1-u)
-  // t = [1/u1 - 1/u0 + ln(u0*(1-u1)/(u1*(1-u0)))] / R
-  return (1/u1 - 1/u0 + Math.log(u0 * (1 - u1) / (u1 * (1 - u0)))) / R;
-}
-
 function renderHalvings() {
   var N = state.supply;
   var K0 = state.k0;
-  var u0 = K0 / N;
+  var S0 = N - K0;
   var R = state.rate;
+  // Constant rate: K(t) = N - S0*e^(Rt), drains at t_end = ln(N/S0)/R
+  var tEnd = Math.log(N / S0) / R;
+  // Halving n: K_n = K0/2^n, t_n = ln((N - K0/2^n) / S0) / R
   var maxN = Math.floor(Math.log(K0 / 1e-9) / Math.log(2));
-  var uLast = u0 / Math.pow(2, maxN);
-  var maxT = halvingTime(u0, uLast, R);
+  // Limit to halvings that occur before drain
+  while (maxN > 0 && K0 / Math.pow(2, maxN) < 1e-9) maxN--;
   var html = '<table><thead><tr><th class="num">#</th><th style="width:35%"></th><th>Years</th><th>Balance</th><th>APR</th></tr></thead><tbody>';
   for (var n = 1; n <= maxN; n++) {
-    var un = u0 / Math.pow(2, n);
     var K = K0 / Math.pow(2, n);
-    var t = halvingTime(u0, un, R);
-    var apr = R * un * un * 100;
-    var pct = (t / maxT * 100).toFixed(1);
+    var rem = N - K;
+    if (rem <= S0) continue; // hasn't happened yet in the model
+    var t = Math.log(rem / S0) / R;
+    if (t > tEnd) break;
+    var apr = R * 100;
+    var pct = (t / tEnd * 100).toFixed(1);
     html += '<tr>';
     html += '<td class="num">' + n + '</td>';
     html += '<td><div style="background:linear-gradient(to right,#f59e0b,#f97316);height:0.4rem;width:' + pct + '%;border-radius:2px"></div></td>';
@@ -488,6 +480,14 @@ function renderHalvings() {
     html += '<td class="apr">' + fmtAPR(apr) + '</td>';
     html += '</tr>';
   }
+  // Show drain time
+  html += '<tr style="border-top:1px solid #27272a">';
+  html += '<td class="num" style="color:#f87171">\u2205</td>';
+  html += '<td><div style="background:#f87171;height:0.4rem;width:100%;border-radius:2px"></div></td>';
+  html += '<td>' + tEnd.toFixed(1) + '</td>';
+  html += '<td class="mono">' + fmt(0) + '</td>';
+  html += '<td class="apr">0%</td>';
+  html += '</tr>';
   html += '</tbody></table>';
   document.getElementById('halvings').innerHTML = html;
   document.getElementById('halvings-section').style.display = '';
