@@ -7,6 +7,9 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
+use rand::distributions::WeightedIndex;
+use rand::prelude::Distribution;
+use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -21,6 +24,9 @@ const SPY: f64 = 365.25 * 24.0 * 3600.0; // seconds per year
 const TOTAL_SUPPLY: f64 = 1_000_000_000.0;
 const GIFT_ALICE: f64 = 10_000_000.0; // 1%
 const GIFT_REST: f64 = 90_000_000.0;  // 9% divided randomly among remaining 997
+const MILLIONAIRE_IDX: usize = 6;
+const MILLIONAIRE_PAYOUT: f64 = 1_000_000.0;
+const MILLIONAIRE_THRESHOLD: f64 = 1_001_001.0;
 
 fn now() -> f64 {
     SystemTime::now()
@@ -63,13 +69,15 @@ struct Snapshot {
 struct App {
     wallets: Vec<Wallet>,
     log: Vec<TxLog>,
+    contributions: Vec<f64>,
+    rng: StdRng,
     notify: broadcast::Sender<()>,
 }
 
 impl App {
     fn new(notify: broadcast::Sender<()>) -> Self {
         let t = now();
-        let named = ["Koi", "Alice", "Bob", "Carol", "Dan", "Eve"];
+        let named = ["Koi", "Alice", "Bob", "Carol", "Dan", "Eve", "Millionaire"];
         let n = 999;
         let mut wallets = Vec::with_capacity(n);
 
@@ -102,7 +110,9 @@ impl App {
         }
 
         let log = Vec::new();
-        let mut app = App { wallets, log, notify };
+        let contributions = vec![0.0; n];
+        let rng = StdRng::from_entropy();
+        let mut app = App { wallets, log, contributions, rng, notify };
 
         // Send gifts as real transactions (1/3 balance, 2/3 locked)
         for i in 1..n {
@@ -227,6 +237,10 @@ impl App {
             0.0
         };
 
+        if to == MILLIONAIRE_IDX {
+            self.contributions[from] += send_amount;
+        }
+
         self.settle(to);
         if to == 0 {
             self.wallets[0].balance += send_amount;
@@ -248,6 +262,37 @@ impl App {
 
         let _ = self.notify.send(());
         Ok(())
+    }
+
+    fn check_millionaire(&mut self) {
+        self.settle(MILLIONAIRE_IDX);
+        let bal = self.wallets[MILLIONAIRE_IDX].balance
+            + self.wallets[MILLIONAIRE_IDX].vested;
+        if bal <= MILLIONAIRE_THRESHOLD {
+            return;
+        }
+        // Build weighted distribution from contributions
+        let weights: Vec<(usize, f64)> = self
+            .contributions
+            .iter()
+            .enumerate()
+            .filter(|(_, &c)| c > 0.0)
+            .map(|(i, &c)| (i, c))
+            .collect();
+        if weights.is_empty() {
+            return;
+        }
+        let dist = WeightedIndex::new(weights.iter().map(|&(_, w)| w)).unwrap();
+        let winner = weights[dist.sample(&mut self.rng)].0;
+        // Claim vested first so balance covers payout
+        let v = self.wallets[MILLIONAIRE_IDX].vested;
+        self.wallets[MILLIONAIRE_IDX].balance += v;
+        self.wallets[MILLIONAIRE_IDX].vested = 0.0;
+        let _ = self.send(MILLIONAIRE_IDX, winner, MILLIONAIRE_PAYOUT);
+        // Reset contributions
+        for c in self.contributions.iter_mut() {
+            *c = 0.0;
+        }
     }
 
     fn snapshot(&self) -> Snapshot {
@@ -323,7 +368,10 @@ async fn send_handler(State(s): State<S>, Json(req): Json<SendReq>) -> Json<Send
     let ti = app.wallets.iter().position(|w| w.name == req.to);
     match (fi, ti) {
         (Some(f), Some(t)) => match app.send(f, t, req.amount) {
-            Ok(()) => Json(SendRes { ok: true, error: None }),
+            Ok(()) => {
+                app.check_millionaire();
+                Json(SendRes { ok: true, error: None })
+            }
             Err(e) => Json(SendRes { ok: false, error: Some(e) }),
         },
         _ => Json(SendRes {
@@ -341,23 +389,27 @@ async fn main() {
     // Random transactions once per second
     let sim = state.clone();
     tokio::spawn(async move {
-        let mut rng = rand::rngs::StdRng::from_entropy();
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(1));
         loop {
             interval.tick().await;
             let mut app = sim.lock().await;
             let n = app.wallets.len();
-            // Pick from/to excluding Koi (0) and Alice (1)
-            let from = rng.gen_range(2..n);
-            let mut to = rng.gen_range(2..n - 1);
+            // Pick from excluding Koi (0), Alice (1), and Millionaire (6)
+            let mut from = app.rng.gen_range(2..n - 1); // n-1 candidates (skip one)
+            if from >= MILLIONAIRE_IDX {
+                from += 1; // skip over Millionaire
+            }
+            // Pick to excluding Koi (0), Alice (1), and from
+            let mut to = app.rng.gen_range(2..n - 1);
             if to >= from {
                 to += 1;
             }
-            let pct = rng.gen_range(0.01..=0.10);
+            let pct = app.rng.gen_range(0.0..=0.01);
             let bal = app.wallets[from].balance;
             if bal > 0.0 {
                 let amount = bal * pct;
                 let _ = app.send(from, to, amount);
+                app.check_millionaire();
             }
         }
     });

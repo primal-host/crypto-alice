@@ -341,8 +341,8 @@ function initCards() {
   var st = document.getElementById('sel-to');
   sf.innerHTML = '';
   st.innerHTML = '';
-  var show = { Alice: 1, Bob: 1, Carol: 1 };
-  for (var i = 0; i < state.wallets.length && i < 6; i++) {
+  var show = { Alice: 1, Bob: 1, Carol: 1, Millionaire: 1 };
+  for (var i = 0; i < state.wallets.length && i < 7; i++) {
     var w = state.wallets[i];
     if (show[w.name]) {
       var card = document.createElement('div');
@@ -377,7 +377,7 @@ function render() {
   var drainPerSec = koiBal - calcKoiBal(t + 1);
   if (drainPerSec > 0) {
     var weeks = Math.floor(koiBal / (drainPerSec * 604800));
-    document.getElementById('depletion').textContent = '~' + weeks.toLocaleString('en-US') + ' weeks';
+    document.getElementById('depletion').textContent = '' + weeks;
   } else {
     document.getElementById('depletion').textContent = '';
   }
