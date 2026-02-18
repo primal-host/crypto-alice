@@ -390,7 +390,7 @@ function renderLog() {
   if (!state) return;
   var c = document.getElementById('log');
   c.innerHTML = '';
-  var entries = state.log.slice().reverse();
+  var entries = state.log.slice(-10).reverse();
   for (var i = 0; i < entries.length; i++) {
     var e = entries[i];
     var d = document.createElement('div');
