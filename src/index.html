@@ -70,7 +70,7 @@ main {
 }
 .acct-row .label { color: #71717a; }
 .acct-row .value { text-align: right; font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; }
-.acct-row.pending .value { color: #f59e0b; }
+.acct-row.vested .value { color: #f59e0b; }
 .acct-row.available .value { color: #fb923c; }
 .acct-row.interest .value { color: #4ade80; }
 .acct-row.sent .value { color: #f87171; }
@@ -279,16 +279,16 @@ function fmt(n) {
 
 function calcAccounts(w, t) {
   if (w.name === 'Koi') {
-    return { deposits: 0, pending: 0, available: 0, total: w.balance, sent: w.sent };
+    return { locked: 0, vested: 0, available: 0, total: w.balance, sent: w.sent };
   }
   var dt = (t - w.t) / state.spy;
-  var vested = Math.min(w.deposits, w.deposits * (Math.exp(state.prate * dt) - 1));
-  var totalPending = w.pending + vested;
+  var vested = Math.min(w.locked, w.locked * (Math.exp(state.prate * dt) - 1));
+  var totalPending = w.vested + vested;
   var interest = (w.balance + totalPending) * (Math.exp(state.rate * dt) - 1);
   return {
-    deposits: w.deposits + w.pending,
-    pending: totalPending,
-    available: 3 * (w.deposits - vested) / 4,
+    locked: w.locked + w.vested,
+    vested: totalPending,
+    available: 3 * (w.locked - vested) / 4,
     total: w.balance + interest,
     sent: w.sent
   };
@@ -299,8 +299,8 @@ function calcKoiBal(t) {
   for (var i = 1; i < state.wallets.length; i++) {
     var o = state.wallets[i];
     var dt = (t - o.t) / state.spy;
-    var vested = Math.min(o.deposits, o.deposits * (Math.exp(state.prate * dt) - 1));
-    var totalPending = o.pending + vested;
+    var vested = Math.min(o.locked, o.locked * (Math.exp(state.prate * dt) - 1));
+    var totalPending = o.vested + vested;
     bal -= (o.balance + totalPending) * (Math.exp(state.rate * dt) - 1);
   }
   return bal;
@@ -311,11 +311,11 @@ function calcRate(w, t) {
   var dt = (t - w.t) / state.spy;
   var erps = state.rate / state.spy;
   var prps = state.prate / state.spy;
-  var vested = Math.min(w.deposits, w.deposits * (Math.exp(state.prate * dt) - 1));
-  var totalPending = w.pending + vested;
+  var vested = Math.min(w.locked, w.locked * (Math.exp(state.prate * dt) - 1));
+  var totalPending = w.vested + vested;
   var rate = (w.balance + totalPending) * erps * Math.exp(state.rate * dt);
-  if (w.deposits * (Math.exp(state.prate * dt) - 1) < w.deposits) {
-    rate += w.deposits * prps * Math.exp(state.prate * dt);
+  if (w.locked * (Math.exp(state.prate * dt) - 1) < w.locked) {
+    rate += w.locked * prps * Math.exp(state.prate * dt);
   }
   return rate;
 }
@@ -339,8 +339,8 @@ function initCards() {
     } else {
       card.innerHTML =
         '<div class="name">' + w.name + '</div>' +
-        '<div class="acct-row"><span class="label">Deposits</span><span class="value" id="dep-' + w.name + '"></span></div>' +
-        '<div class="acct-row pending"><span class="label">Pending</span><span class="value" id="pnd-' + w.name + '"></span></div>' +
+        '<div class="acct-row"><span class="label">Locked</span><span class="value" id="dep-' + w.name + '"></span></div>' +
+        '<div class="acct-row vested"><span class="label">Vested</span><span class="value" id="pnd-' + w.name + '"></span></div>' +
         '<div class="acct-row available"><span class="label">Available</span><span class="value" id="imm-' + w.name + '"></span></div>' +
         '<div class="acct-row balance-row"><span class="label">Balance</span><span class="value" id="bal-' + w.name + '"></span></div>' +
         '<div class="rate" id="rate-' + w.name + '"></div>' +
@@ -378,8 +378,8 @@ function render() {
       balEl.textContent = fmt(koiBal);
     } else {
       var a = calcAccounts(w, t);
-      document.getElementById('dep-' + w.name).textContent = fmt(a.deposits);
-      document.getElementById('pnd-' + w.name).textContent = fmt(a.pending);
+      document.getElementById('dep-' + w.name).textContent = fmt(a.locked);
+      document.getElementById('pnd-' + w.name).textContent = fmt(a.vested);
       document.getElementById('imm-' + w.name).textContent = fmt(a.available);
       balEl.textContent = fmt(a.total);
       document.getElementById('rate-' + w.name).textContent = '+' + fmt(calcRate(w, t)) + '/sec';

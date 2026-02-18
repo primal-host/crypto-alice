@@ -16,7 +16,7 @@ use std::{
 use tokio::sync::{broadcast, Mutex};
 
 const RATE: f64 = 1.0 / 3.0; // 33.33% APR
-const PRATE: f64 = RATE * 10.0; // pending rate
+const PRATE: f64 = RATE * 10.0; // vesting rate
 const SPY: f64 = 365.25 * 24.0 * 3600.0; // seconds per year
 const TOTAL_SUPPLY: f64 = 1_000_000_000.0;
 const GIFT_ALICE: f64 = 10_000_000.0; // 1%
@@ -32,8 +32,8 @@ fn now() -> f64 {
 #[derive(Clone, Serialize)]
 struct Wallet {
     name: String,
-    deposits: f64,
-    pending: f64,
+    locked: f64,
+    vested: f64,
     balance: f64,
     sent: f64,
     t: f64,
@@ -80,8 +80,8 @@ impl App {
             };
             wallets.push(Wallet {
                 name,
-                deposits: 0.0,
-                pending: 0.0,
+                locked: 0.0,
+                vested: 0.0,
                 balance: 0.0,
                 sent: 0.0,
                 t,
@@ -91,14 +91,14 @@ impl App {
         wallets[0].balance = TOTAL_SUPPLY;
 
         // Alice gets 1%
-        wallets[1].deposits = GIFT_ALICE;
+        wallets[1].locked = GIFT_ALICE;
 
         // Remaining 997 wallets split 9% randomly
         let mut rng = rand::thread_rng();
-        let mut weights: Vec<f64> = (2..n).map(|_| rng.gen::<f64>()).collect();
+        let weights: Vec<f64> = (2..n).map(|_| rng.gen::<f64>()).collect();
         let sum: f64 = weights.iter().sum();
         for (i, w) in weights.iter().enumerate() {
-            wallets[i + 2].deposits = GIFT_REST * w / sum;
+            wallets[i + 2].locked = GIFT_REST * w / sum;
         }
 
         let total = GIFT_ALICE + GIFT_REST;
@@ -111,7 +111,7 @@ impl App {
             log.push(TxLog {
                 from: "Koi".into(),
                 to: wallets[i].name.clone(),
-                amount: wallets[i].deposits,
+                amount: wallets[i].locked,
                 t,
             });
         }
@@ -128,12 +128,12 @@ impl App {
         let w = &self.wallets[i];
         let dt = (t - w.t) / SPY;
 
-        let vested = (w.deposits * ((PRATE * dt).exp() - 1.0)).min(w.deposits);
-        let interest = (w.balance + w.pending + vested) * ((RATE * dt).exp() - 1.0);
+        let vested = (w.locked * ((PRATE * dt).exp() - 1.0)).min(w.locked);
+        let interest = (w.balance + w.vested + vested) * ((RATE * dt).exp() - 1.0);
 
         self.wallets[i].balance += interest;
-        self.wallets[i].pending += vested;
-        self.wallets[i].deposits -= vested;
+        self.wallets[i].vested += vested;
+        self.wallets[i].locked -= vested;
         self.wallets[i].t = t;
 
         // Only interest funded by Koi
@@ -151,28 +151,28 @@ impl App {
         self.settle(i);
 
         if amount > 0.0 {
-            let available = 3.0 * self.wallets[i].deposits / 4.0;
+            let available = 3.0 * self.wallets[i].locked / 4.0;
             if amount > available {
                 return Err("Exceeds available".into());
             }
         }
 
-        // Move all vested pending to balance (free)
-        let settled_pending = self.wallets[i].pending;
-        self.wallets[i].balance += settled_pending;
-        self.wallets[i].pending = 0.0;
+        // Move all vested to balance (free)
+        let claimed = self.wallets[i].vested;
+        self.wallets[i].balance += claimed;
+        self.wallets[i].vested = 0.0;
 
         // Early settlement: wallet gets amount, fee goes to Koi
         if amount > 0.0 {
             let fee = amount / 3.0;
             self.wallets[i].balance += amount;
-            self.wallets[i].deposits -= amount + fee;
+            self.wallets[i].locked -= amount + fee;
             self.wallets[0].balance += fee;
         }
 
         let t = now();
         let name = self.wallets[i].name.clone();
-        let total = settled_pending + amount;
+        let total = claimed + amount;
         if total > 0.0 {
             self.log.push(TxLog {
                 from: name.clone(),
@@ -215,7 +215,7 @@ impl App {
             // Koi receives directly to balance
             self.wallets[0].balance += amount;
         } else {
-            self.wallets[to].deposits += amount;
+            self.wallets[to].locked += amount;
         }
 
         let t = now();
