@@ -326,20 +326,7 @@ function calcKoiBal(t) {
   return bal;
 }
 
-function calcRate(w, t) {
-  if (w.name === 'Koi') return 0;
-  var dt = (t - w.t) / state.spy;
-  var erate = state.rate * state.wallets[0].balance / state.supply;
-  var erps = erate / state.spy;
-  var prps = state.prate / state.spy;
-  var vested = Math.min(w.locked, w.locked * (Math.exp(state.prate * dt) - 1));
-  var totalPending = w.vested + vested;
-  var rate = (w.balance + totalPending) * erps * Math.exp(erate * dt);
-  if (w.locked * (Math.exp(state.prate * dt) - 1) < w.locked) {
-    rate += w.locked * prps * Math.exp(state.prate * dt);
-  }
-  return rate;
-}
+
 
 function initCards() {
   var c = document.getElementById('wallets');
@@ -368,7 +355,6 @@ function initCards() {
           '<div class="acct-row available"><span class="label">Available</span><span class="value" id="imm-' + w.name + '"></span></div>' +
           '<div class="acct-row balance-row"><span class="label">Balance</span><span class="value" id="bal-' + w.name + '"></span></div>' +
           '<div class="acct-row interest"><span class="label">Interest</span><span class="value" id="int-' + w.name + '"></span></div>' +
-          '<div class="rate" id="rate-' + w.name + '"></div>' +
           '<div class="acct-row sent"><span class="label">Sent</span><span class="value" id="snt-' + w.name + '"></span></div>';
       }
       c.appendChild(card);
@@ -430,7 +416,6 @@ function render() {
       document.getElementById('imm-' + w.name).textContent = fmt(a.available);
       balEl.textContent = fmt(a.total);
       document.getElementById('int-' + w.name).textContent = fmt(a.interest);
-      document.getElementById('rate-' + w.name).textContent = '+' + fmt(calcRate(w, t)) + '/sec';
       document.getElementById('snt-' + w.name).textContent = fmt(a.sent);
     }
   }
