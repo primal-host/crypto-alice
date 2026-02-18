@@ -219,8 +219,6 @@ main {
     <div class="koi-balance" id="koi-bal"></div>
   </div>
 
-  <div class="wallets" id="wallets"></div>
-
   <div class="section">
     <h2>Transfer</h2>
     <div class="transfer-form">
@@ -240,6 +238,8 @@ main {
     </div>
     <div id="error" class="error-msg"></div>
   </div>
+
+  <div class="wallets" id="wallets"></div>
 
   <div class="section">
     <h2>Transaction Log</h2>
@@ -327,16 +327,13 @@ function initCards() {
   var st = document.getElementById('sel-to');
   sf.innerHTML = '';
   st.innerHTML = '';
+  var show = { Alice: 1, Bob: 1, Carol: 1 };
   for (var i = 0; i < state.wallets.length && i < 6; i++) {
     var w = state.wallets[i];
-    var card = document.createElement('div');
-    card.className = 'wallet-card';
-    card.id = 'card-' + w.name;
-    if (w.name === 'Koi') {
-      card.innerHTML =
-        '<div class="name">' + w.name + '</div>' +
-        '<div class="acct-row balance-row"><span class="label">Balance</span><span class="value" id="bal-' + w.name + '"></span></div>';
-    } else {
+    if (show[w.name]) {
+      var card = document.createElement('div');
+      card.className = 'wallet-card';
+      card.id = 'card-' + w.name;
       card.innerHTML =
         '<div class="name">' + w.name + '</div>' +
         '<div class="acct-row"><span class="label">Locked</span><span class="value" id="dep-' + w.name + '"></span></div>' +
@@ -345,8 +342,8 @@ function initCards() {
         '<div class="acct-row balance-row"><span class="label">Balance</span><span class="value" id="bal-' + w.name + '"></span></div>' +
         '<div class="rate" id="rate-' + w.name + '"></div>' +
         '<div class="acct-row sent"><span class="label">Sent</span><span class="value" id="snt-' + w.name + '"></span></div>';
+      c.appendChild(card);
     }
-    c.appendChild(card);
     sf.add(new Option(w.name, w.name));
     st.add(new Option(w.name, w.name));
   }
